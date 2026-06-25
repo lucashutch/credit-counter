@@ -116,6 +116,7 @@ export class SessionReader {
     const sessionId = path.basename(filePath, ".jsonl");
     let totalCredits = 0;
     let firstPrompt = "";
+    let customTitle = "";
     let timestamp = 0;
 
     try {
@@ -143,6 +144,9 @@ export class SessionReader {
         if (!firstPrompt && meta.firstPrompt) {
           firstPrompt = meta.firstPrompt;
         }
+        if (meta.customTitle) {
+          customTitle = meta.customTitle;
+        }
         if (meta.creationDate && timestamp === 0) {
           timestamp = meta.creationDate;
         }
@@ -151,8 +155,11 @@ export class SessionReader {
       return undefined;
     }
 
-    // Exclude sessions that never captured a user prompt.
-    if (!firstPrompt) {
+    // Prefer the user/AI-assigned custom title; fall back to the first prompt.
+    const displayTitle = customTitle || firstPrompt;
+
+    // Exclude sessions that never captured a title or prompt.
+    if (!displayTitle) {
       return undefined;
     }
 
@@ -168,7 +175,7 @@ export class SessionReader {
     return {
       sessionId,
       workspaceHash,
-      firstPrompt,
+      firstPrompt: displayTitle,
       timestamp,
       totalCredits: Math.round(totalCredits * 10) / 10,
     };
@@ -177,6 +184,7 @@ export class SessionReader {
   /** Extracts prompt text / timestamps from a parsed JSONL record. */
   private extractMetadata(parsed: unknown): {
     firstPrompt?: string;
+    customTitle?: string;
     timestamp?: number;
     creationDate?: number;
   } {
@@ -185,10 +193,26 @@ export class SessionReader {
     }
     const obj = parsed as Record<string, unknown>;
     const v = obj.v as Record<string, unknown> | undefined;
-    const result: { firstPrompt?: string; timestamp?: number; creationDate?: number } = {};
+    const result: {
+      firstPrompt?: string;
+      customTitle?: string;
+      timestamp?: number;
+      creationDate?: number;
+    } = {};
 
     if (v && typeof v.creationDate === "number") {
       result.creationDate = v.creationDate;
+    }
+
+    // Custom title: lines shaped like {"kind":1,"k":["customTitle"],"v":"..."}.
+    const k = obj.k;
+    if (
+      Array.isArray(k) &&
+      k[0] === "customTitle" &&
+      typeof obj.v === "string" &&
+      obj.v.trim()
+    ) {
+      result.customTitle = obj.v.trim().replace(/\s+/g, " ");
     }
 
     // Requests can live in v.requests (header) or v itself (kind:2 with k:["requests"]).
