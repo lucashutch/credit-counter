@@ -38,7 +38,7 @@
 		"viewsWelcome": [
 			{
 				"view": "copilotCostTracker.labels",
-				"contents": "[$(graph) Open Dashboard](command:copilotCostTracker.openDashboard)\n"
+				"contents": "[$(graph) Open Dashboard](command:copilotCostTracker.openDashboard)\n\nNo labels yet.\n[$(add) Add Label](command:copilotCostTracker.addLabel)\n"
 			}
 		],
 		"commands": [

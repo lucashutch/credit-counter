@@ -1,10 +1,15 @@
 import * as vscode from "vscode";
 import { LabelTreeDataProvider } from "./views/LabelTreeDataProvider";
 import { SessionTreeDataProvider } from "./views/SessionTreeDataProvider";
+import { StateManager } from "./state/StateManager";
+import { SessionReader } from "./data/SessionReader";
+import { registerLabelCommands } from "./commands";
 
 export function activate(context: vscode.ExtensionContext): void {
-  const labelProvider = new LabelTreeDataProvider();
-  const sessionProvider = new SessionTreeDataProvider();
+  const state = new StateManager(context);
+  const reader = new SessionReader(context);
+  const labelProvider = new LabelTreeDataProvider(state);
+  const sessionProvider = new SessionTreeDataProvider(reader, state);
 
   context.subscriptions.push(
     vscode.window.registerTreeDataProvider(
@@ -17,19 +22,19 @@ export function activate(context: vscode.ExtensionContext): void {
     )
   );
 
-  // --- Command stubs (fully implemented in later phases) ---
+  // Label CRUD (Phase 2).
+  context.subscriptions.push(...registerLabelCommands(state));
+
+  // --- Command stubs (implemented in later phases) ---
   const stub = (name: string) =>
     vscode.commands.registerCommand(name, () => {
       vscode.window.showInformationMessage(
-        `${name} is not implemented yet (Phase 1 scaffold).`
+        `${name} is not implemented yet.`
       );
     });
 
   context.subscriptions.push(
     stub("copilotCostTracker.openDashboard"),
-    stub("copilotCostTracker.addLabel"),
-    stub("copilotCostTracker.renameLabel"),
-    stub("copilotCostTracker.deleteLabel"),
     stub("copilotCostTracker.assignLabel"),
     vscode.commands.registerCommand(
       "copilotCostTracker.refreshSessions",

@@ -1,32 +1,104 @@
 import * as vscode from "vscode";
+import { SessionCost } from "../data/types";
+import { SessionReader } from "../data/SessionReader";
+import { StateManager } from "../state/StateManager";
+
+/** Tree item wrapping a single chat session. */
+export class SessionTreeItem extends vscode.TreeItem {
+  constructor(
+    public readonly session: SessionCost,
+    labelName: string | undefined
+  ) {
+    super(SessionTreeItem.makeLabel(session), vscode.TreeItemCollapsibleState.None);
+    this.id = session.sessionId;
+    this.contextValue = "session";
+    this.iconPath = new vscode.ThemeIcon("comment-discussion");
+
+    const credits = session.totalCredits.toFixed(1);
+    this.description = labelName
+      ? `${credits} cr · ${labelName}`
+      : `${credits} cr`;
+    this.tooltip = new vscode.MarkdownString(
+      [
+        `**${session.firstPrompt}**`,
+        "",
+        `- Credits: ${credits}`,
+        `- Label: ${labelName ?? "None"}`,
+        `- Date: ${new Date(session.timestamp).toLocaleString()}`,
+        `- Session: \`${session.sessionId}\``,
+      ].join("\n")
+    );
+  }
+
+  private static makeLabel(session: SessionCost): string {
+    const time = new Date(session.timestamp).toLocaleString(undefined, {
+      month: "short",
+      day: "numeric",
+      hour: "2-digit",
+      minute: "2-digit",
+    });
+    return `${time} · ${session.firstPrompt}`;
+  }
+}
 
 /**
- * Placeholder provider for the Chat Sessions view (Phase 1).
- * Real data ingestion arrives in Phase 3.
+ * Lists all detected chat sessions, sorted most-recent first, annotated with
+ * their total credits and any assigned label.
  */
 export class SessionTreeDataProvider
-  implements vscode.TreeDataProvider<vscode.TreeItem>
+  implements vscode.TreeDataProvider<SessionTreeItem>
 {
   private readonly _onDidChangeTreeData = new vscode.EventEmitter<
-    vscode.TreeItem | undefined | void
+    SessionTreeItem | undefined | void
   >();
   readonly onDidChangeTreeData = this._onDidChangeTreeData.event;
 
-  refresh(): void {
+  private sessions: SessionCost[] = [];
+  private loaded = false;
+
+  constructor(
+    private readonly reader: SessionReader,
+    private readonly state: StateManager
+  ) {
+    // Re-render when label assignments change.
+    this.state.onDidChange(() => this._onDidChangeTreeData.fire());
+  }
+
+  /** Forces a re-read of the log files. */
+  async refresh(): Promise<void> {
+    this.sessions = await this.reader.readAllSessions();
+    this.loaded = true;
     this._onDidChangeTreeData.fire();
   }
 
-  getTreeItem(element: vscode.TreeItem): vscode.TreeItem {
+  /** Returns the currently loaded sessions (cached). */
+  getSessions(): SessionCost[] {
+    return this.sessions;
+  }
+
+  getTreeItem(element: SessionTreeItem): vscode.TreeItem {
     return element;
   }
 
-  getChildren(): vscode.ProviderResult<vscode.TreeItem[]> {
-    // Phase 1: placeholder row until the session reader lands in Phase 3.
-    const item = new vscode.TreeItem(
-      "No sessions loaded yet",
-      vscode.TreeItemCollapsibleState.None
-    );
-    item.iconPath = new vscode.ThemeIcon("comment-discussion");
-    return [item];
+  async getChildren(): Promise<SessionTreeItem[]> {
+    if (!this.loaded) {
+      this.sessions = await this.reader.readAllSessions();
+      this.loaded = true;
+    }
+    if (this.sessions.length === 0) {
+      const empty = new vscode.TreeItem(
+        "No chat sessions found",
+        vscode.TreeItemCollapsibleState.None
+      );
+      empty.iconPath = new vscode.ThemeIcon("info");
+      return [empty as SessionTreeItem];
+    }
+    const labels = this.state.getLabels();
+    const assignments = this.state.getAssignments();
+    return this.sessions.map((s) => {
+      const labelId = assignments[s.sessionId];
+      const labelName = labels.find((l) => l.id === labelId)?.name;
+      return new SessionTreeItem(s, labelName);
+    });
   }
 }
