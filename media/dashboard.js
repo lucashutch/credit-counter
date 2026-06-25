@@ -100,7 +100,7 @@
           {
             label: "Credits",
             data: perSession.map((s) => s.credits),
-            backgroundColor: "#4e79a7",
+            backgroundColor: perSession.map((s) => s.color),
           },
         ],
       },

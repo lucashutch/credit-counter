@@ -31,6 +31,19 @@ export function buildDashboardData(
   assignments: Record<string, string>,
   now: Date = new Date()
 ): DashboardData {
+  // --- Shared label → color map (single source of truth for both charts) --
+  const colorById = new Map<string, string>();
+  labels.forEach((label, i) => {
+    colorById.set(label.id, label.color ?? PALETTE[i % PALETTE.length]);
+  });
+  colorById.set("__unassigned__", UNASSIGNED_COLOR);
+
+  const colorForSession = (sessionId: string): string => {
+    const labelId = assignments[sessionId];
+    const key = labelId && colorById.has(labelId) ? labelId : "__unassigned__";
+    return colorById.get(key) ?? UNASSIGNED_COLOR;
+  };
+
   // --- Per session (top N by credits) ------------------------------------
   const perSession = [...sessions]
     .filter((s) => s.totalCredits > 0)
@@ -39,6 +52,7 @@ export function buildDashboardData(
     .map((s) => ({
       label: s.firstPrompt || s.sessionId.slice(0, 8),
       credits: round(s.totalCredits),
+      color: colorForSession(s.sessionId),
     }));
 
   // --- Per label (including Unassigned) ----------------------------------
@@ -51,13 +65,13 @@ export function buildDashboardData(
   }
 
   const perLabel: DashboardData["perLabel"] = [];
-  labels.forEach((label, i) => {
+  labels.forEach((label) => {
     const credits = totals.get(label.id) ?? 0;
     if (credits > 0) {
       perLabel.push({
         name: label.name,
         credits: round(credits),
-        color: label.color ?? PALETTE[i % PALETTE.length],
+        color: colorById.get(label.id) ?? UNASSIGNED_COLOR,
       });
     }
   });

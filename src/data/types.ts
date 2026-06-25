@@ -39,7 +39,7 @@ export interface CostEntry {
 /** Aggregated payload sent to the dashboard webview (Phase 5). */
 export interface DashboardData {
   /** Per-session totals (top N), most expensive first. */
-  perSession: { label: string; credits: number }[];
+  perSession: { label: string; credits: number; color: string }[];
   /** Per-label totals, including an "Unassigned" bucket. */
   perLabel: { name: string; credits: number; color: string }[];
   /** Daily cumulative credits for the current month. */
