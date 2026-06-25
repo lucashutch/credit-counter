@@ -35,3 +35,23 @@ export interface CostEntry {
   /** Parsed credit value, e.g. 143.6. */
   credits: number;
 }
+
+/** Aggregated payload sent to the dashboard webview (Phase 5). */
+export interface DashboardData {
+  /** Per-session totals (top N), most expensive first. */
+  perSession: { label: string; credits: number }[];
+  /** Per-label totals, including an "Unassigned" bucket. */
+  perLabel: { name: string; credits: number; color: string }[];
+  /** Daily cumulative credits for the current month. */
+  monthly: { day: number; cumulative: number }[];
+  /** Headline KPIs. */
+  kpis: {
+    totalCredits: number;
+    activeLabels: number;
+    monthCredits: number;
+    prevMonthCredits: number;
+    percentChange: number | null;
+  };
+  /** Month label, e.g. "June 2026". */
+  monthLabel: string;
+}

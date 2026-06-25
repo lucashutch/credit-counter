@@ -3,6 +3,7 @@ import { LabelTreeDataProvider } from "./views/LabelTreeDataProvider";
 import { SessionTreeDataProvider } from "./views/SessionTreeDataProvider";
 import { StateManager } from "./state/StateManager";
 import { SessionReader } from "./data/SessionReader";
+import { DashboardPanel } from "./dashboard/DashboardPanel";
 import { registerLabelCommands, registerSessionCommands } from "./commands";
 
 export function activate(context: vscode.ExtensionContext): void {
@@ -28,16 +29,11 @@ export function activate(context: vscode.ExtensionContext): void {
   // Session label assignment (Phase 4).
   context.subscriptions.push(...registerSessionCommands(state));
 
-  // --- Command stubs (implemented in later phases) ---
-  const stub = (name: string) =>
-    vscode.commands.registerCommand(name, () => {
-      vscode.window.showInformationMessage(
-        `${name} is not implemented yet.`
-      );
-    });
-
+  // Dashboard (Phase 5).
   context.subscriptions.push(
-    stub("copilotCostTracker.openDashboard"),
+    vscode.commands.registerCommand("copilotCostTracker.openDashboard", () =>
+      DashboardPanel.show(context.extensionUri, reader, state)
+    ),
     vscode.commands.registerCommand(
       "copilotCostTracker.refreshSessions",
       () => sessionProvider.refresh()

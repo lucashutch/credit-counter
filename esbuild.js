@@ -1,9 +1,27 @@
 const esbuild = require("esbuild");
+const fs = require("fs");
+const path = require("path");
 
 const production = process.argv.includes("--production");
 const watch = process.argv.includes("--watch");
 
+/** Copies the Chart.js UMD bundle into media/ so the webview can load it locally (CSP-safe). */
+function copyChartJs() {
+  const src = path.join(
+    __dirname,
+    "node_modules",
+    "chart.js",
+    "dist",
+    "chart.umd.min.js"
+  );
+  const dest = path.join(__dirname, "media", "chart.umd.min.js");
+  if (fs.existsSync(src)) {
+    fs.copyFileSync(src, dest);
+  }
+}
+
 async function main() {
+  copyChartJs();
   const ctx = await esbuild.context({
     entryPoints: ["src/extension.ts"],
     bundle: true,
