@@ -1,0 +1,136 @@
+{
+	"name": "copilot-cost-tracker",
+	"displayName": "Copilot Cost Tracker",
+	"description": "Track, label, and visualize the credit cost of your local Copilot chat sessions.",
+	"version": "0.0.1",
+	"publisher": "local",
+	"engines": {
+		"vscode": "^1.90.0"
+	},
+	"categories": [
+		"Visualization",
+		"Other"
+	],
+	"main": "./dist/extension.js",
+	"activationEvents": [],
+	"contributes": {
+		"viewsContainers": {
+			"activitybar": [
+				{
+					"id": "copilotCostTracker",
+					"title": "Copilot Cost Tracker",
+					"icon": "media/icon.svg"
+				}
+			]
+		},
+		"views": {
+			"copilotCostTracker": [
+				{
+					"id": "copilotCostTracker.labels",
+					"name": "Label Management"
+				},
+				{
+					"id": "copilotCostTracker.sessions",
+					"name": "Chat Sessions"
+				}
+			]
+		},
+		"viewsWelcome": [
+			{
+				"view": "copilotCostTracker.labels",
+				"contents": "[$(graph) Open Dashboard](command:copilotCostTracker.openDashboard)\n"
+			}
+		],
+		"commands": [
+			{
+				"command": "copilotCostTracker.openDashboard",
+				"title": "Open Dashboard",
+				"category": "Copilot Cost Tracker",
+				"icon": "$(graph)"
+			},
+			{
+				"command": "copilotCostTracker.addLabel",
+				"title": "Add Label",
+				"category": "Copilot Cost Tracker",
+				"icon": "$(add)"
+			},
+			{
+				"command": "copilotCostTracker.renameLabel",
+				"title": "Rename Label",
+				"category": "Copilot Cost Tracker",
+				"icon": "$(edit)"
+			},
+			{
+				"command": "copilotCostTracker.deleteLabel",
+				"title": "Delete Label",
+				"category": "Copilot Cost Tracker",
+				"icon": "$(trash)"
+			},
+			{
+				"command": "copilotCostTracker.assignLabel",
+				"title": "Assign Label",
+				"category": "Copilot Cost Tracker"
+			},
+			{
+				"command": "copilotCostTracker.refreshSessions",
+				"title": "Refresh Sessions",
+				"category": "Copilot Cost Tracker",
+				"icon": "$(refresh)"
+			}
+		],
+		"menus": {
+			"view/title": [
+				{
+					"command": "copilotCostTracker.openDashboard",
+					"when": "view == copilotCostTracker.labels",
+					"group": "navigation@1"
+				},
+				{
+					"command": "copilotCostTracker.addLabel",
+					"when": "view == copilotCostTracker.labels",
+					"group": "navigation@2"
+				},
+				{
+					"command": "copilotCostTracker.refreshSessions",
+					"when": "view == copilotCostTracker.sessions",
+					"group": "navigation@1"
+				}
+			],
+			"view/item/context": [
+				{
+					"command": "copilotCostTracker.renameLabel",
+					"when": "view == copilotCostTracker.labels && viewItem == label",
+					"group": "inline@1"
+				},
+				{
+					"command": "copilotCostTracker.deleteLabel",
+					"when": "view == copilotCostTracker.labels && viewItem == label",
+					"group": "inline@2"
+				},
+				{
+					"command": "copilotCostTracker.assignLabel",
+					"when": "view == copilotCostTracker.sessions && viewItem == session",
+					"group": "1_assign"
+				}
+			]
+		}
+	},
+	"scripts": {
+		"vscode:prepublish": "npm run package",
+		"compile": "node esbuild.js",
+		"watch": "node esbuild.js --watch",
+		"package": "node esbuild.js --production",
+		"lint": "eslint src --ext ts",
+		"pretest": "npm run compile && npm run lint",
+		"test": "vscode-test"
+	},
+	"devDependencies": {
+		"@types/node": "^20.x",
+		"@types/vscode": "^1.90.0",
+		"@typescript-eslint/eslint-plugin": "^7.0.0",
+		"@typescript-eslint/parser": "^7.0.0",
+		"esbuild": "^0.21.0",
+		"eslint": "^8.57.0",
+		"typescript": "^5.4.0"
+	}
+}
