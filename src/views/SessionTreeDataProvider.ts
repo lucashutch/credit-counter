@@ -3,6 +3,62 @@ import { SessionCost } from "../data/types";
 import { SessionReader } from "../data/SessionReader";
 import { StateManager } from "../state/StateManager";
 
+/**
+ * Deterministic hex palette for the workspace-initial letter. A workspace name
+ * always maps to the same color.
+ */
+const BADGE_COLORS = [
+  "#4e79a7",
+  "#f28e2b",
+  "#e15759",
+  "#76b7b2",
+  "#59a14f",
+  "#d4a72c",
+  "#b07aa1",
+  "#e26d76",
+  "#9c755f",
+  "#8a807c",
+];
+
+/** Stable hash → palette index (deterministic per name). */
+function colorIndexForName(name: string): number {
+  let hash = 0;
+  for (let i = 0; i < name.length; i++) {
+    hash = (hash * 31 + name.charCodeAt(i)) | 0;
+  }
+  return Math.abs(hash) % BADGE_COLORS.length;
+}
+
+/** First letter (uppercased) of a workspace name, for the badge. */
+function initialForName(name: string): string {
+  const ch = name.trim().charAt(0).toUpperCase();
+  return /[A-Z0-9]/.test(ch) ? ch : "•";
+}
+
+/**
+ * Builds an SVG data URI rendering just the colored letter (transparent
+ * background) so only the letter is colored — not the row label.
+ */
+function letterIconUri(name: string): vscode.Uri {
+  const letter = initialForName(name);
+  const color = BADGE_COLORS[colorIndexForName(name)];
+  const svg =
+    `<svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 16 16">` +
+    `<text x="8" y="12" text-anchor="middle" font-family="sans-serif" ` +
+    `font-size="13" font-weight="700" fill="${color}">${escapeXml(letter)}</text>` +
+    `</svg>`;
+  return vscode.Uri.parse(
+    "data:image/svg+xml;utf8," + encodeURIComponent(svg)
+  );
+}
+
+function escapeXml(s: string): string {
+  return s
+    .replace(/&/g, "&amp;")
+    .replace(/</g, "&lt;")
+    .replace(/>/g, "&gt;");
+}
+
 /** Tree item wrapping a single chat session. */
 export class SessionTreeItem extends vscode.TreeItem {
   /** Plain-text metadata (matches the tooltip), used by "Copy metadata". */
@@ -15,7 +71,9 @@ export class SessionTreeItem extends vscode.TreeItem {
     super(SessionTreeItem.makeLabel(session), vscode.TreeItemCollapsibleState.None);
     this.id = session.sessionId;
     this.contextValue = "session";
-    this.iconPath = new vscode.ThemeIcon("comment-discussion");
+
+    // Colored workspace-initial letter (only the letter is colored).
+    this.iconPath = letterIconUri(session.workspaceName ?? session.workspaceHash);
 
     const credits = session.totalCredits.toFixed(1);
     this.description = labelName
