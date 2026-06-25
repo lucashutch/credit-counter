@@ -32,7 +32,9 @@ export class SessionTreeItem extends vscode.TreeItem {
         ...fields
           .filter(([k]) => k !== "Title")
           .map(([k, v]) =>
-            k === "Session" ? `- ${k}: \`${v}\`` : `- ${k}: ${v}`
+            k === "Session" || k === "Workspace ID"
+              ? `- ${k}: \`${v}\``
+              : `- ${k}: ${v}`
           ),
       ].join("\n")
     );
@@ -49,8 +51,9 @@ export class SessionTreeItem extends vscode.TreeItem {
       ["Credits", credits],
       ["Label", labelName ?? "None"],
       ["Date", new Date(session.timestamp).toLocaleString()],
+      ["Workspace", session.workspaceName ?? "Unknown"],
       ["Session", session.sessionId],
-      ["Workspace", session.workspaceHash],
+      ["Workspace ID", session.workspaceHash],
     ];
   }
 

@@ -18,6 +18,8 @@ export interface SessionCost {
   sessionId: string;
   /** Parent `workspaceStorage` directory hash. */
   workspaceHash: string;
+  /** Human-readable workspace/repo name, derived from `workspace.json`. */
+  workspaceName?: string;
   /** Snippet of the first prompt, for display. */
   firstPrompt: string;
   /** Earliest request time in epoch milliseconds. */

@@ -91,12 +91,19 @@ export class SessionReader {
       } catch {
         continue; // workspace has no chat sessions
       }
+      const workspaceName = await this.readWorkspaceName(
+        path.join(root, workspaceHash)
+      );
       for (const file of files) {
         if (!file.endsWith(".jsonl")) {
           continue;
         }
         const filePath = path.join(chatDir, file);
-        const session = await this.readSessionFile(filePath, workspaceHash);
+        const session = await this.readSessionFile(
+          filePath,
+          workspaceHash,
+          workspaceName
+        );
         if (session) {
           sessions.push(session);
         }
@@ -108,10 +115,43 @@ export class SessionReader {
     return sessions;
   }
 
+  /**
+   * Reads `workspace.json` for a workspace storage folder and derives a
+   * human-readable name from its `folder` (or `workspace`) URI. Returns
+   * undefined when unavailable.
+   */
+  private async readWorkspaceName(
+    workspaceDir: string
+  ): Promise<string | undefined> {
+    try {
+      const raw = await fs.promises.readFile(
+        path.join(workspaceDir, "workspace.json"),
+        "utf8"
+      );
+      const json = JSON.parse(raw) as {
+        folder?: string;
+        workspace?: string;
+      };
+      const uri = json.folder ?? json.workspace;
+      if (!uri) {
+        return undefined;
+      }
+      // Take the last path segment of the URI as the name.
+      const decoded = decodeURIComponent(uri.replace(/\/+$/, ""));
+      let name = decoded.substring(decoded.lastIndexOf("/") + 1);
+      // For multi-root workspaces, strip the .code-workspace extension.
+      name = name.replace(/\.code-workspace$/i, "");
+      return name || undefined;
+    } catch {
+      return undefined;
+    }
+  }
+
   /** Streams one `.jsonl` file, tallying credits and extracting display metadata. */
   private async readSessionFile(
     filePath: string,
-    workspaceHash: string
+    workspaceHash: string,
+    workspaceName: string | undefined
   ): Promise<SessionCost | undefined> {
     const sessionId = path.basename(filePath, ".jsonl");
     let totalCredits = 0;
@@ -175,6 +215,7 @@ export class SessionReader {
     return {
       sessionId,
       workspaceHash,
+      workspaceName,
       firstPrompt: displayTitle,
       timestamp,
       totalCredits: Math.round(totalCredits * 10) / 10,
