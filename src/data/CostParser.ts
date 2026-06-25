@@ -1,12 +1,14 @@
 import { CostEntry } from "./types";
 
 /**
- * Matches credit values in a `details` string, e.g.:
- *   "Claude Opus 4.8 • 143.6 credits"  -> 143.6
- *   "GPT-5.5 • 12.2 credits"           -> 12.2
- * The model portion (before the bullet) is optional.
+ * Matches credit values inside a quoted `details` string, e.g.:
+ *   "Claude Opus 4.8 • 143.6 credits"  -> model "Claude Opus 4.8", 143.6
+ *   "GPT-5.5 • 12.2 credits"           -> model "GPT-5.5", 12.2
+ * Capture group 1 is the model, group 2 is the numeric credit value.
+ * Group 1 excludes quotes so it cannot span across JSON string boundaries
+ * when scanning a whole raw line.
  */
-const CREDITS_RE = /([0-9]+(?:\.[0-9]+)?)\s*credits/gi;
+const CREDITS_RE = /"([^"]+?)\s*•\s*(\d+(?:\.\d+)?)\s*credits"/gi;
 
 /**
  * Parses a single `details` string into a {@link CostEntry}, or undefined when
@@ -21,16 +23,12 @@ export function parseDetails(details: unknown): CostEntry | undefined {
   if (!match) {
     return undefined;
   }
-  const credits = parseFloat(match[1]);
+  const credits = parseFloat(match[2]);
   if (!Number.isFinite(credits)) {
     return undefined;
   }
-  // Model name is everything before the bullet/value, trimmed of separators.
-  let model = details
-    .split(/[•|\-–]/)[0]
-    .replace(/credits.*/i, "")
-    .trim();
-  // If what's left is just the numeric credit value (no real model), drop it.
+  // Model name is capture group 1; treat a purely numeric value as no model.
+  let model = match[1].trim();
   if (/^[0-9.]+$/.test(model)) {
     model = "";
   }
@@ -48,7 +46,7 @@ export function sumCreditsInLine(rawLine: string): number {
   let match: RegExpExecArray | null;
   CREDITS_RE.lastIndex = 0;
   while ((match = CREDITS_RE.exec(rawLine)) !== null) {
-    const value = parseFloat(match[1]);
+    const value = parseFloat(match[2]);
     if (Number.isFinite(value)) {
       total += value;
     }

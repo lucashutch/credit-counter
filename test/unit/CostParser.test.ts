@@ -3,17 +3,17 @@ import { parseDetails, sumCreditsInLine } from "../../src/data/CostParser";
 
 describe("CostParser.parseDetails", () => {
   it("parses model and credits from a standard details string", () => {
-    const entry = parseDetails("Claude Opus 4.8 • 143.6 credits");
+    const entry = parseDetails('"Claude Opus 4.8 • 143.6 credits"');
     assert.deepStrictEqual(entry, { model: "Claude Opus 4.8", credits: 143.6 });
   });
 
   it("parses integer credit values", () => {
-    const entry = parseDetails("GPT-5.5 • 12 credits");
+    const entry = parseDetails('"GPT-5.5 • 12 credits"');
     assert.strictEqual(entry?.credits, 12);
   });
 
   it("returns undefined when there are no credits", () => {
-    assert.strictEqual(parseDetails("Claude Opus 4.8"), undefined);
+    assert.strictEqual(parseDetails('"Claude Opus 4.8"'), undefined);
   });
 
   it("returns undefined for non-string input", () => {
@@ -22,10 +22,9 @@ describe("CostParser.parseDetails", () => {
     assert.strictEqual(parseDetails(null), undefined);
   });
 
-  it("falls back to 'Unknown' model when none is present", () => {
-    const entry = parseDetails("57.0 credits");
-    assert.strictEqual(entry?.credits, 57);
-    assert.strictEqual(entry?.model, "Unknown");
+  it("returns undefined when the model/bullet form is missing", () => {
+    // The stricter regex requires the quoted "Model • N credits" form.
+    assert.strictEqual(parseDetails('"57.0 credits"'), undefined);
   });
 });
 
@@ -36,7 +35,8 @@ describe("CostParser.sumCreditsInLine", () => {
   });
 
   it("sums multiple credit values on one line", () => {
-    const line = "a 10 credits ... b 5.5 credits ... c 4 credits";
+    const line =
+      '"GPT-5.5 • 10 credits" ... "Claude • 5.5 credits" ... "GPT • 4 credits"';
     assert.strictEqual(sumCreditsInLine(line), 19.5);
   });
 
