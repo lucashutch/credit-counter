@@ -85,13 +85,9 @@ export class SessionTreeDataProvider
       this.sessions = await this.reader.readAllSessions();
       this.loaded = true;
     }
+    // When empty, return nothing so the view's welcome content is shown.
     if (this.sessions.length === 0) {
-      const empty = new vscode.TreeItem(
-        "No chat sessions found",
-        vscode.TreeItemCollapsibleState.None
-      );
-      empty.iconPath = new vscode.ThemeIcon("info");
-      return [empty as SessionTreeItem];
+      return [];
     }
     const labels = this.state.getLabels();
     const assignments = this.state.getAssignments();

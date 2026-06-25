@@ -39,6 +39,10 @@
 			{
 				"view": "copilotCostTracker.labels",
 				"contents": "[$(graph) Open Dashboard](command:copilotCostTracker.openDashboard)\n\nNo labels yet.\n[$(add) Add Label](command:copilotCostTracker.addLabel)\n"
+			},
+			{
+				"view": "copilotCostTracker.sessions",
+				"contents": "No chat sessions found.\nCost data is read from your local Copilot chat logs.\n[$(refresh) Refresh](command:copilotCostTracker.refreshSessions)\n"
 			}
 		],
 		"commands": [
@@ -121,17 +125,23 @@
 		"watch": "node esbuild.js --watch",
 		"package": "node esbuild.js --production",
 		"lint": "eslint src --ext ts",
-		"pretest": "npm run compile && npm run lint",
-		"test": "vscode-test"
+		"pretest": "npm run lint",
+		"test": "cross-env TS_NODE_PROJECT=tsconfig.test.json mocha"
 	},
 	"devDependencies": {
+		"@types/mocha": "^10.0.10",
 		"@types/node": "^20.x",
 		"@types/vscode": "^1.90.0",
 		"@typescript-eslint/eslint-plugin": "^7.0.0",
 		"@typescript-eslint/parser": "^7.0.0",
+		"@vscode/test-cli": "^0.0.15",
+		"@vscode/test-electron": "^3.0.0",
 		"chart.js": "^4.5.1",
+		"cross-env": "^10.1.0",
 		"esbuild": "^0.21.0",
 		"eslint": "^8.57.0",
+		"mocha": "^11.7.6",
+		"ts-node": "^10.9.2",
 		"typescript": "^5.4.0"
 	}
 }

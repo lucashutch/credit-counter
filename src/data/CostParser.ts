@@ -26,10 +26,14 @@ export function parseDetails(details: unknown): CostEntry | undefined {
     return undefined;
   }
   // Model name is everything before the bullet/value, trimmed of separators.
-  const model = details
+  let model = details
     .split(/[•|\-–]/)[0]
     .replace(/credits.*/i, "")
     .trim();
+  // If what's left is just the numeric credit value (no real model), drop it.
+  if (/^[0-9.]+$/.test(model)) {
+    model = "";
+  }
   return { model: model || "Unknown", credits };
 }
 

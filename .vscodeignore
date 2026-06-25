@@ -6,8 +6,11 @@ test/**
 **/*.map
 .gitignore
 .eslintrc.json
+.mocharc.json
 esbuild.js
 tsconfig.json
+tsconfig.test.json
+install.sh
 SPEC.md
 PLAN.md
 **/node_modules/**
