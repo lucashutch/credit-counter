@@ -1,6 +1,7 @@
 import * as vscode from "vscode";
 import { StateManager } from "./state/StateManager";
 import { LabelTreeItem } from "./views/LabelTreeDataProvider";
+import { SessionTreeItem } from "./views/SessionTreeDataProvider";
 
 /**
  * Registers the label CRUD commands. Returns disposables to be added to the
@@ -22,6 +23,74 @@ export function registerLabelCommands(
       (item?: LabelTreeItem) => deleteLabel(state, item)
     ),
   ];
+}
+
+/**
+ * Registers the session-related commands (label assignment).
+ */
+export function registerSessionCommands(
+  state: StateManager
+): vscode.Disposable[] {
+  return [
+    vscode.commands.registerCommand(
+      "copilotCostTracker.assignLabel",
+      (item?: SessionTreeItem) => assignLabel(state, item)
+    ),
+  ];
+}
+
+async function assignLabel(
+  state: StateManager,
+  item?: SessionTreeItem
+): Promise<void> {
+  if (!item?.session) {
+    vscode.window.showInformationMessage(
+      "Right-click a chat session to assign a label."
+    );
+    return;
+  }
+
+  const labels = state.getLabels();
+  if (labels.length === 0) {
+    const action = await vscode.window.showInformationMessage(
+      "No labels exist yet. Create one first?",
+      "Add Label"
+    );
+    if (action === "Add Label") {
+      await vscode.commands.executeCommand("copilotCostTracker.addLabel");
+    }
+    return;
+  }
+
+  const current = state.getAssignment(item.session.sessionId);
+
+  type Pick = vscode.QuickPickItem & { id?: string; clear?: boolean };
+  const picks: Pick[] = [
+    {
+      label: "$(circle-slash) Clear label",
+      description: current ? "Remove the current label" : undefined,
+      clear: true,
+    },
+    ...labels.map<Pick>((l) => ({
+      label: l.name,
+      id: l.id,
+      picked: l.id === current,
+      description: l.id === current ? "Currently assigned" : undefined,
+    })),
+  ];
+
+  const choice = await vscode.window.showQuickPick(picks, {
+    title: `Assign Label · ${item.session.firstPrompt}`,
+    placeHolder: "Select a label for this session",
+  });
+  if (!choice) {
+    return;
+  }
+
+  await state.assignLabel(
+    item.session.sessionId,
+    choice.clear ? undefined : choice.id
+  );
 }
 
 async function addLabel(state: StateManager): Promise<void> {
