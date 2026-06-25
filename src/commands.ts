@@ -26,7 +26,7 @@ export function registerLabelCommands(
 }
 
 /**
- * Registers the session-related commands (label assignment).
+ * Registers the session-related commands (label assignment, copy metadata).
  */
 export function registerSessionCommands(
   state: StateManager
@@ -36,7 +36,22 @@ export function registerSessionCommands(
       "copilotCostTracker.assignLabel",
       (item?: SessionTreeItem) => assignLabel(state, item)
     ),
+    vscode.commands.registerCommand(
+      "copilotCostTracker.copyMetadata",
+      (item?: SessionTreeItem) => copyMetadata(item)
+    ),
   ];
+}
+
+async function copyMetadata(item?: SessionTreeItem): Promise<void> {
+  if (!item?.metadataText) {
+    vscode.window.showInformationMessage(
+      "Right-click a chat session to copy its metadata."
+    );
+    return;
+  }
+  await vscode.env.clipboard.writeText(item.metadataText);
+  vscode.window.showInformationMessage("Session metadata copied to clipboard.");
 }
 
 async function assignLabel(

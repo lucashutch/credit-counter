@@ -76,6 +76,12 @@
 				"category": "Copilot Cost Tracker"
 			},
 			{
+				"command": "copilotCostTracker.copyMetadata",
+				"title": "Copy Metadata",
+				"category": "Copilot Cost Tracker",
+				"icon": "$(copy)"
+			},
+			{
 				"command": "copilotCostTracker.refreshSessions",
 				"title": "Refresh Sessions",
 				"category": "Copilot Cost Tracker",
@@ -115,6 +121,11 @@
 					"command": "copilotCostTracker.assignLabel",
 					"when": "view == copilotCostTracker.sessions && viewItem == session",
 					"group": "1_assign"
+				},
+				{
+					"command": "copilotCostTracker.copyMetadata",
+					"when": "view == copilotCostTracker.sessions && viewItem == session",
+					"group": "9_copy"
 				}
 			]
 		}

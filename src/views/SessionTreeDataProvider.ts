@@ -5,9 +5,12 @@ import { StateManager } from "../state/StateManager";
 
 /** Tree item wrapping a single chat session. */
 export class SessionTreeItem extends vscode.TreeItem {
+  /** Plain-text metadata (matches the tooltip), used by "Copy metadata". */
+  public readonly metadataText: string;
+
   constructor(
     public readonly session: SessionCost,
-    labelName: string | undefined
+    public readonly labelName: string | undefined
   ) {
     super(SessionTreeItem.makeLabel(session), vscode.TreeItemCollapsibleState.None);
     this.id = session.sessionId;
@@ -18,16 +21,37 @@ export class SessionTreeItem extends vscode.TreeItem {
     this.description = labelName
       ? `${credits} cr · ${labelName}`
       : `${credits} cr`;
+
+    const fields = SessionTreeItem.buildFields(session, labelName, credits);
+    this.metadataText = fields.map(([k, v]) => `${k}: ${v}`).join("\n");
+
     this.tooltip = new vscode.MarkdownString(
       [
         `**${session.firstPrompt}**`,
         "",
-        `- Credits: ${credits}`,
-        `- Label: ${labelName ?? "None"}`,
-        `- Date: ${new Date(session.timestamp).toLocaleString()}`,
-        `- Session: \`${session.sessionId}\``,
+        ...fields
+          .filter(([k]) => k !== "Title")
+          .map(([k, v]) =>
+            k === "Session" ? `- ${k}: \`${v}\`` : `- ${k}: ${v}`
+          ),
       ].join("\n")
     );
+  }
+
+  /** Ordered metadata fields shared by the tooltip and clipboard copy. */
+  private static buildFields(
+    session: SessionCost,
+    labelName: string | undefined,
+    credits: string
+  ): [string, string][] {
+    return [
+      ["Title", session.firstPrompt],
+      ["Credits", credits],
+      ["Label", labelName ?? "None"],
+      ["Date", new Date(session.timestamp).toLocaleString()],
+      ["Session", session.sessionId],
+      ["Workspace", session.workspaceHash],
+    ];
   }
 
   private static makeLabel(session: SessionCost): string {
