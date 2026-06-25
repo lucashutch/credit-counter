@@ -37,8 +37,52 @@ export function activate(context: vscode.ExtensionContext): void {
     vscode.commands.registerCommand(
       "copilotCostTracker.refreshSessions",
       () => sessionProvider.refresh()
+    ),
+    vscode.commands.registerCommand(
+      "copilotCostTracker.filterSessions",
+      () => filterSessions(state, sessionProvider)
+    ),
+    vscode.commands.registerCommand(
+      "copilotCostTracker.clearFilter",
+      () => sessionProvider.clearFilter()
     )
   );
+}
+
+/** Shows a multi-select QuickPick of labels (plus "Unassigned") to filter sessions. */
+async function filterSessions(
+  state: StateManager,
+  provider: SessionTreeDataProvider
+): Promise<void> {
+  const labels = state.getLabels();
+  const active = provider.getFilter();
+
+  type Pick = vscode.QuickPickItem & { id: string };
+  const items: Pick[] = [
+    ...labels.map<Pick>((l) => ({
+      label: l.name,
+      id: l.id,
+      picked: active?.has(l.id) ?? false,
+    })),
+    {
+      label: "Unassigned",
+      description: "Sessions with no label",
+      id: SessionTreeDataProvider.UNASSIGNED,
+      picked: active?.has(SessionTreeDataProvider.UNASSIGNED) ?? false,
+    },
+  ];
+
+  const picked = await vscode.window.showQuickPick(items, {
+    title: "Filter Sessions by Label",
+    placeHolder: "Select labels to show (none = show all)",
+    canPickMany: true,
+  });
+
+  // Cancelled (Escape): leave the current filter untouched.
+  if (picked === undefined) {
+    return;
+  }
+  provider.setFilter(picked.map((p) => p.id));
 }
 
 export function deactivate(): void {

@@ -79,6 +79,14 @@ export class SessionTreeDataProvider
 
   private sessions: SessionCost[] = [];
   private loaded = false;
+  /**
+   * Active label filter. `undefined` means no filter (show all). Otherwise a
+   * set of label ids and/or the special `UNASSIGNED` token; a session is shown
+   * if its assignment matches any entry in the set.
+   */
+  private filter: Set<string> | undefined;
+
+  static readonly UNASSIGNED = "__unassigned__";
 
   constructor(
     private readonly reader: SessionReader,
@@ -100,6 +108,32 @@ export class SessionTreeDataProvider
     return this.sessions;
   }
 
+  /** Returns whether a filter is currently active. */
+  isFiltered(): boolean {
+    return this.filter !== undefined && this.filter.size > 0;
+  }
+
+  /** Returns the active filter set (label ids + UNASSIGNED token), if any. */
+  getFilter(): Set<string> | undefined {
+    return this.filter;
+  }
+
+  /** Applies a label filter. Pass an empty set or undefined to clear it. */
+  setFilter(ids: string[] | undefined): void {
+    this.filter = ids && ids.length > 0 ? new Set(ids) : undefined;
+    void vscode.commands.executeCommand(
+      "setContext",
+      "copilotCostTracker.filterActive",
+      this.isFiltered()
+    );
+    this._onDidChangeTreeData.fire();
+  }
+
+  /** Clears any active filter and shows all sessions. */
+  clearFilter(): void {
+    this.setFilter(undefined);
+  }
+
   getTreeItem(element: SessionTreeItem): vscode.TreeItem {
     return element;
   }
@@ -115,10 +149,26 @@ export class SessionTreeDataProvider
     }
     const labels = this.state.getLabels();
     const assignments = this.state.getAssignments();
-    return this.sessions.map((s) => {
-      const labelId = assignments[s.sessionId];
-      const labelName = labels.find((l) => l.id === labelId)?.name;
-      return new SessionTreeItem(s, labelName);
-    });
+
+    return this.sessions
+      .filter((s) => this.matchesFilter(s, assignments))
+      .map((s) => {
+        const labelId = assignments[s.sessionId];
+        const labelName = labels.find((l) => l.id === labelId)?.name;
+        return new SessionTreeItem(s, labelName);
+      });
+  }
+
+  /** Whether a session passes the active filter (always true when unfiltered). */
+  private matchesFilter(
+    session: SessionCost,
+    assignments: Record<string, string>
+  ): boolean {
+    if (!this.filter || this.filter.size === 0) {
+      return true;
+    }
+    const labelId = assignments[session.sessionId];
+    const key = labelId ? labelId : SessionTreeDataProvider.UNASSIGNED;
+    return this.filter.has(key);
   }
 }
