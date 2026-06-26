@@ -33,7 +33,9 @@ export class EventEmitter<T> {
 export class FakeMemento {
   private store = new Map<string, unknown>();
 
-  get<T>(key: string, defaultValue: T): T {
+  get<T>(key: string): T | undefined;
+  get<T>(key: string, defaultValue: T): T;
+  get<T>(key: string, defaultValue?: T): T | undefined {
     return this.store.has(key) ? (this.store.get(key) as T) : defaultValue;
   }
 

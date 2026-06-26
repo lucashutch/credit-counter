@@ -6,12 +6,60 @@ import * as readline from "readline";
 import { SessionCost } from "./types";
 import { sumCreditsInLine } from "./CostParser";
 
+/** `globalState` key under which the parsed-session cache is persisted. */
+const CACHE_KEY = "copilotCostTracker.sessionCache";
+
+/**
+ * One cached file's parse result, keyed by absolute file path. `mtimeMs` and
+ * `size` together detect changes cheaply (a `stat` instead of a full re-read).
+ * `session` is `null` when the file parsed successfully but produced no
+ * displayable session (e.g. no title/prompt), so we don't re-parse it.
+ */
+interface CacheEntry {
+  mtimeMs: number;
+  size: number;
+  session: SessionCost | null;
+}
+
+/**
+ * Persisted cache envelope. `version` is the extension version; when it differs
+ * from the running extension the entire cache is discarded so that changes to
+ * the parsing logic can't surface stale results.
+ */
+interface CacheEnvelope {
+  version: string;
+  entries: Record<string, CacheEntry>;
+}
+
 /**
  * Reads Copilot chat session logs from VS Code's `workspaceStorage` directory
  * and produces per-session cost summaries.
  */
 export class SessionReader {
+  /** In-flight `readAllSessions` promise, used to single-flight overlapping calls. */
+  private inFlight: Promise<SessionCost[]> | undefined;
+
   constructor(private readonly context: vscode.ExtensionContext) {}
+
+  /** Current extension version, used as the cache invalidation key. */
+  private get version(): string {
+    return (this.context.extension?.packageJSON?.version as string) ?? "0.0.0";
+  }
+
+  /** Loads the persisted cache, discarding it if the extension version changed. */
+  private loadCache(): Record<string, CacheEntry> {
+    const env = this.context.globalState.get<CacheEnvelope>(CACHE_KEY);
+    if (!env || env.version !== this.version || !env.entries) {
+      return {};
+    }
+    return env.entries;
+  }
+
+  /** Persists the cache under the current extension version. */
+  private async saveCache(entries: Record<string, CacheEntry>): Promise<void> {
+    const env: CacheEnvelope = { version: this.version, entries };
+    await this.context.globalState.update(CACHE_KEY, env);
+  }
 
   /**
    * Resolves the absolute path to `.../User/workspaceStorage`.
@@ -68,20 +116,43 @@ export class SessionReader {
     return roots;
   }
 
-  /** Reads and aggregates all chat sessions found under the storage root. */
+  /**
+   * Reads and aggregates all chat sessions found under the storage root.
+   *
+   * Overlapping calls share a single in-flight read (the tree view and the
+   * dashboard both call this independently). Results are cached per file keyed
+   * on `mtime`+`size`; unchanged files skip the (expensive) streaming parse.
+   */
   async readAllSessions(): Promise<SessionCost[]> {
+    if (this.inFlight) {
+      return this.inFlight;
+    }
+    this.inFlight = this.readAllSessionsUncached();
+    try {
+      return await this.inFlight;
+    } finally {
+      this.inFlight = undefined;
+    }
+  }
+
+  private async readAllSessionsUncached(): Promise<SessionCost[]> {
     const root = this.getWorkspaceStorageRoot();
     if (!root || !fs.existsSync(root)) {
       return [];
     }
 
-    const sessions: SessionCost[] = [];
     let workspaceHashes: string[];
     try {
       workspaceHashes = await fs.promises.readdir(root);
     } catch {
       return [];
     }
+
+    const cache = this.loadCache();
+    const nextCache: Record<string, CacheEntry> = {};
+    const sessions: SessionCost[] = [];
+    // Whether the cache changed (entry added/updated/evicted) and must be saved.
+    let dirty = false;
 
     for (const workspaceHash of workspaceHashes) {
       const chatDir = path.join(root, workspaceHash, "chatSessions");
@@ -99,15 +170,57 @@ export class SessionReader {
           continue;
         }
         const filePath = path.join(chatDir, file);
+
+        let stat: fs.Stats;
+        try {
+          stat = await fs.promises.stat(filePath);
+        } catch {
+          continue; // file vanished between readdir and stat
+        }
+
+        const hit = cache[filePath];
+        if (hit && hit.mtimeMs === stat.mtimeMs && hit.size === stat.size) {
+          // Reuse the cached parse result; re-stamp the workspace name in case
+          // it changed (the file content didn't, but its metadata might have).
+          const session = hit.session
+            ? { ...hit.session, workspaceName }
+            : null;
+          nextCache[filePath] = { ...hit, session };
+          if (session) {
+            sessions.push(session);
+          }
+          continue;
+        }
+
         const session = await this.readSessionFile(
           filePath,
           workspaceHash,
           workspaceName
         );
+        nextCache[filePath] = {
+          mtimeMs: stat.mtimeMs,
+          size: stat.size,
+          session: session ?? null,
+        };
+        dirty = true;
         if (session) {
           sessions.push(session);
         }
       }
+    }
+
+    // Detect evictions: any previously-cached file not seen this pass.
+    if (!dirty) {
+      for (const key of Object.keys(cache)) {
+        if (!(key in nextCache)) {
+          dirty = true;
+          break;
+        }
+      }
+    }
+
+    if (dirty) {
+      await this.saveCache(nextCache);
     }
 
     // Most recent first.
