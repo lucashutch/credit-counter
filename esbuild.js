@@ -20,8 +20,31 @@ function copyChartJs() {
   }
 }
 
+/**
+ * Copies the sql.js WASM binary next to the bundled extension so it can be
+ * loaded at runtime via `locateFile` (see SessionReader).
+ */
+function copySqlWasm() {
+  const src = path.join(
+    __dirname,
+    "node_modules",
+    "sql.js",
+    "dist",
+    "sql-wasm.wasm"
+  );
+  const distDir = path.join(__dirname, "dist");
+  if (!fs.existsSync(distDir)) {
+    fs.mkdirSync(distDir, { recursive: true });
+  }
+  const dest = path.join(distDir, "sql-wasm.wasm");
+  if (fs.existsSync(src)) {
+    fs.copyFileSync(src, dest);
+  }
+}
+
 async function main() {
   copyChartJs();
+  copySqlWasm();
   const ctx = await esbuild.context({
     entryPoints: ["src/extension.ts"],
     bundle: true,

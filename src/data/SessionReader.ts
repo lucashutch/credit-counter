@@ -3,11 +3,34 @@ import * as fs from "fs";
 import * as path from "path";
 import * as os from "os";
 import * as readline from "readline";
+import initSqlJs, { Database, SqlJsStatic } from "sql.js";
 import { SessionCost } from "./types";
 import { sumCreditsInLine } from "./CostParser";
 
 /** `globalState` key under which the parsed-session cache is persisted. */
 const CACHE_KEY = "copilotCostTracker.sessionCache";
+
+/** SQLite `ItemTable` key holding the chat-session index JSON. */
+const SESSION_INDEX_KEY = "chat.ChatSessionStore.index";
+
+/**
+ * One session entry as stored in the `chat.ChatSessionStore.index` value of
+ * `state.vscdb`. Only the fields we consume are modelled.
+ */
+interface SessionIndexEntry {
+  sessionId: string;
+  title?: string;
+  isEmpty?: boolean;
+  timing?: { created?: number };
+  lastMessageDate?: number;
+}
+
+/** Parsed shape of the `chat.ChatSessionStore.index` value. */
+interface SessionIndex {
+  version?: number;
+  entries?: Record<string, SessionIndexEntry>;
+}
+
 
 /**
  * One cached file's parse result, keyed by absolute file path. `mtimeMs` and
@@ -39,11 +62,27 @@ export class SessionReader {
   /** In-flight `readAllSessions` promise, used to single-flight overlapping calls. */
   private inFlight: Promise<SessionCost[]> | undefined;
 
+  /** Lazily-initialized sql.js module (loads the WASM once). */
+  private sqlJs: Promise<SqlJsStatic> | undefined;
+
   constructor(private readonly context: vscode.ExtensionContext) {}
 
   /** Current extension version, used as the cache invalidation key. */
   private get version(): string {
     return (this.context.extension?.packageJSON?.version as string) ?? "0.0.0";
+  }
+
+  /**
+   * Initializes sql.js once, locating the WASM binary that `esbuild.js` copies
+   * next to the bundled extension (`dist/sql-wasm.wasm`).
+   */
+  private getSqlJs(): Promise<SqlJsStatic> {
+    if (!this.sqlJs) {
+      this.sqlJs = initSqlJs({
+        locateFile: (file: string) => path.join(__dirname, file),
+      });
+    }
+    return this.sqlJs;
   }
 
   /** Loads the persisted cache, discarding it if the extension version changed. */
@@ -155,35 +194,39 @@ export class SessionReader {
     let dirty = false;
 
     for (const workspaceHash of workspaceHashes) {
-      const chatDir = path.join(root, workspaceHash, "chatSessions");
-      let files: string[];
-      try {
-        files = await fs.promises.readdir(chatDir);
-      } catch {
-        continue; // workspace has no chat sessions
+      const workspaceDir = path.join(root, workspaceHash);
+      // The chat-session index lives in the workspace's SQLite state store.
+      const indexEntries = await this.readSessionIndex(workspaceDir);
+      if (!indexEntries.length) {
+        continue; // workspace has no chat sessions (or no/locked db)
       }
-      const workspaceName = await this.readWorkspaceName(
-        path.join(root, workspaceHash)
-      );
-      for (const file of files) {
-        if (!file.endsWith(".jsonl")) {
+      const chatDir = path.join(workspaceDir, "chatSessions");
+      const workspaceName = await this.readWorkspaceName(workspaceDir);
+
+      for (const entry of indexEntries) {
+        // Skip sessions the editor flagged as empty (no real activity).
+        if (entry.isEmpty) {
           continue;
         }
-        const filePath = path.join(chatDir, file);
+        // Direct path construction — no globbing needed.
+        const filePath = path.join(chatDir, `${entry.sessionId}.jsonl`);
+
+        // The display title always comes from the database, never the file.
+        const title = (entry.title ?? "").trim().replace(/\s+/g, " ");
 
         let stat: fs.Stats;
         try {
           stat = await fs.promises.stat(filePath);
         } catch {
-          continue; // file vanished between readdir and stat
+          continue; // indexed session has no backing file
         }
 
         const hit = cache[filePath];
         if (hit && hit.mtimeMs === stat.mtimeMs && hit.size === stat.size) {
-          // Reuse the cached parse result; re-stamp the workspace name in case
-          // it changed (the file content didn't, but its metadata might have).
+          // Reuse the cached parse result; re-stamp the workspace name and the
+          // DB-sourced title (file content unchanged, but metadata might differ).
           const session = hit.session
-            ? { ...hit.session, workspaceName }
+            ? { ...hit.session, workspaceName, firstPrompt: title }
             : null;
           nextCache[filePath] = { ...hit, session };
           if (session) {
@@ -195,7 +238,9 @@ export class SessionReader {
         const session = await this.readSessionFile(
           filePath,
           workspaceHash,
-          workspaceName
+          workspaceName,
+          title,
+          entry
         );
         nextCache[filePath] = {
           mtimeMs: stat.mtimeMs,
@@ -260,16 +305,63 @@ export class SessionReader {
     }
   }
 
-  /** Streams one `.jsonl` file, tallying credits and extracting display metadata. */
+  /**
+   * Reads the chat-session index from a workspace's `state.vscdb` SQLite store.
+   *
+   * The index lives under the `chat.ChatSessionStore.index` key as a JSON blob.
+   * The database is opened from an in-memory copy of the file bytes (via
+   * sql.js) so we never contend with the lock VS Code holds on the live file.
+   * Returns an empty array when the db/key is missing or unreadable.
+   */
+  private async readSessionIndex(
+    workspaceDir: string
+  ): Promise<SessionIndexEntry[]> {
+    const dbPath = path.join(workspaceDir, "state.vscdb");
+    let bytes: Buffer;
+    try {
+      bytes = await fs.promises.readFile(dbPath);
+    } catch {
+      return []; // no state store for this workspace
+    }
+
+    let db: Database | undefined;
+    try {
+      const SQL = await this.getSqlJs();
+      db = new SQL.Database(bytes);
+      const result = db.exec(
+        "SELECT value FROM ItemTable WHERE key = ?",
+        [SESSION_INDEX_KEY]
+      );
+      const raw = result[0]?.values?.[0]?.[0];
+      if (typeof raw !== "string") {
+        return [];
+      }
+      const index = JSON.parse(raw) as SessionIndex;
+      const entries = index.entries;
+      if (!entries || typeof entries !== "object") {
+        return [];
+      }
+      return Object.values(entries).filter(
+        (e): e is SessionIndexEntry =>
+          !!e && typeof e.sessionId === "string"
+      );
+    } catch {
+      return []; // missing table/key, malformed json, or load failure
+    } finally {
+      db?.close();
+    }
+  }
+
+  /** Streams one `.jsonl` file, tallying credits and extracting the timestamp. */
   private async readSessionFile(
     filePath: string,
     workspaceHash: string,
-    workspaceName: string | undefined
+    workspaceName: string | undefined,
+    title: string,
+    indexEntry: SessionIndexEntry
   ): Promise<SessionCost | undefined> {
     const sessionId = path.basename(filePath, ".jsonl");
     let totalCredits = 0;
-    let firstPrompt = "";
-    let customTitle = "";
     let timestamp = 0;
 
     try {
@@ -283,7 +375,7 @@ export class SessionReader {
         // Credits: scan the raw line (resilient to schema differences).
         totalCredits += sumCreditsInLine(line);
 
-        // Metadata: parse the line and pull prompt/timestamp from requests.
+        // Metadata: parse the line and pull the earliest timestamp from requests.
         let parsed: unknown;
         try {
           parsed = JSON.parse(line);
@@ -294,12 +386,6 @@ export class SessionReader {
         if (meta.timestamp && (timestamp === 0 || meta.timestamp < timestamp)) {
           timestamp = meta.timestamp;
         }
-        if (!firstPrompt && meta.firstPrompt) {
-          firstPrompt = meta.firstPrompt;
-        }
-        if (meta.customTitle) {
-          customTitle = meta.customTitle;
-        }
         if (meta.creationDate && timestamp === 0) {
           timestamp = meta.creationDate;
         }
@@ -308,16 +394,16 @@ export class SessionReader {
       return undefined;
     }
 
-    // Prefer the user/AI-assigned custom title; fall back to the first prompt.
-    const displayTitle = customTitle || firstPrompt;
-
-    // Exclude sessions that never captured a title or prompt.
-    if (!displayTitle) {
+    // The display title always comes from the database.
+    if (!title) {
       return undefined;
     }
 
     if (timestamp === 0) {
-      // Fall back to file mtime if no in-file timestamp was found.
+      // Fall back to the index's created time, then file mtime.
+      timestamp = indexEntry.timing?.created ?? 0;
+    }
+    if (timestamp === 0) {
       try {
         timestamp = (await fs.promises.stat(filePath)).mtimeMs;
       } catch {
@@ -329,16 +415,14 @@ export class SessionReader {
       sessionId,
       workspaceHash,
       workspaceName,
-      firstPrompt: displayTitle,
+      firstPrompt: title,
       timestamp,
       totalCredits: Math.round(totalCredits * 10) / 10,
     };
   }
 
-  /** Extracts prompt text / timestamps from a parsed JSONL record. */
+  /** Extracts the earliest timestamp / creation date from a parsed JSONL record. */
   private extractMetadata(parsed: unknown): {
-    firstPrompt?: string;
-    customTitle?: string;
     timestamp?: number;
     creationDate?: number;
   } {
@@ -348,25 +432,12 @@ export class SessionReader {
     const obj = parsed as Record<string, unknown>;
     const v = obj.v as Record<string, unknown> | undefined;
     const result: {
-      firstPrompt?: string;
-      customTitle?: string;
       timestamp?: number;
       creationDate?: number;
     } = {};
 
     if (v && typeof v.creationDate === "number") {
       result.creationDate = v.creationDate;
-    }
-
-    // Custom title: lines shaped like {"kind":1,"k":["customTitle"],"v":"..."}.
-    const k = obj.k;
-    if (
-      Array.isArray(k) &&
-      k[0] === "customTitle" &&
-      typeof obj.v === "string" &&
-      obj.v.trim()
-    ) {
-      result.customTitle = obj.v.trim().replace(/\s+/g, " ");
     }
 
     // Requests can live in v.requests (header) or v itself (kind:2 with k:["requests"]).
@@ -386,13 +457,6 @@ export class SessionReader {
           result.timestamp === undefined
             ? req.timestamp
             : Math.min(result.timestamp, req.timestamp);
-      }
-      if (!result.firstPrompt) {
-        const message = req.message as Record<string, unknown> | undefined;
-        const text = message?.text;
-        if (typeof text === "string" && text.trim()) {
-          result.firstPrompt = text.trim().replace(/\s+/g, " ").slice(0, 40);
-        }
       }
     }
     return result;

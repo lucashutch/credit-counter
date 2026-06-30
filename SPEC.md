@@ -83,7 +83,8 @@ Clicking "Open Dashboard" launches a Webview in a new editor tab. The dashboard 
 ```
 
 ### 2.4. Data Source & Processing
-* **Session Parsing:** The extension sources data by reading `.jsonl` files located in the VS Code `workspaceStorage` under the `chatSessions` directory.
+* **Session Discovery:** The extension enumerates chat sessions from each workspace's `state.vscdb` SQLite store (`workspaceStorage/<hash>/state.vscdb`). The `chat.ChatSessionStore.index` key holds a JSON index of sessions; entries with `isEmpty: true` are excluded. Session titles are always taken from this index, never from the file.
+* **Session Parsing:** For each indexed session, the `.jsonl` file is read directly at `chatSessions/<sessionId>.jsonl` (no directory globbing) to tally credits.
 * **Cost Calculation:** * Each `.jsonl` file is parsed line by line.
     * The extension searches for and extracts the `line["v"]["details"]` field.
     * Using a regex or string extraction, it parses the credit value from strings formatted like `"Claude Opus 4.8 • 143.6 credits"`.
@@ -107,7 +108,7 @@ Clicking "Open Dashboard" launches a Webview in a new editor tab. The dashboard 
 * **TreeView Providers:**
     * `LabelTreeDataProvider`: Manages the state and UI for the upper label section.
     * `SessionTreeDataProvider`: Manages the state and UI for the lower sessions section.
-* **Chat Session Reader Service:** A utility that accesses the `workspaceStorage/chatSessions` directory, iterates through the `.jsonl` files, safely parses the JSON on each line, extracts the `v.details` field, and tallies the total credits.
+* **Chat Session Reader Service:** A utility that reads the `chat.ChatSessionStore.index` from each workspace's `state.vscdb` (via sql.js), filters out empty sessions, then opens each session's `.jsonl` file directly to safely parse the JSON on each line, extract the `v.details` field, and tally the total credits. The display title is sourced from the database index.
 * **Webview Panel:** An HTML/JS-based UI for the Dashboard. Uses a charting library (like Chart.js or Recharts) to render the timeseries and cost breakdowns.
 * **State Manager:** Handles saving and retrieving label arrays and the dictionary mapping `sessionId` to `labelId`.
 
