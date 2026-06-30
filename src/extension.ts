@@ -12,14 +12,17 @@ export function activate(context: vscode.ExtensionContext): void {
   const labelProvider = new LabelTreeDataProvider(state);
   const sessionProvider = new SessionTreeDataProvider(reader, state);
 
+  const sessionsView = vscode.window.createTreeView(
+    "copilotCostTracker.sessions",
+    { treeDataProvider: sessionProvider }
+  );
+  sessionProvider.setTreeView(sessionsView);
+
   context.subscriptions.push(
+    sessionsView,
     vscode.window.registerTreeDataProvider(
       "copilotCostTracker.labels",
       labelProvider
-    ),
-    vscode.window.registerTreeDataProvider(
-      "copilotCostTracker.sessions",
-      sessionProvider
     )
   );
 

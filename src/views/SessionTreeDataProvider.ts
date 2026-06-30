@@ -140,6 +140,8 @@ export class SessionTreeDataProvider
 
   private sessions: SessionCost[] = [];
   private loaded = false;
+  /** The owning TreeView, set after `createTreeView`, used to show a summary. */
+  private treeView: vscode.TreeView<SessionTreeItem> | undefined;
   /**
    * Active label filter. `undefined` means no filter (show all). Otherwise a
    * set of label ids and/or the special `UNASSIGNED` token; a session is shown
@@ -157,11 +159,41 @@ export class SessionTreeDataProvider
     this.state.onDidChange(() => this._onDidChangeTreeData.fire());
   }
 
+  /** Associates the created TreeView so we can show the monthly summary on it. */
+  setTreeView(view: vscode.TreeView<SessionTreeItem>): void {
+    this.treeView = view;
+    this.updateSummary();
+  }
+
   /** Forces a re-read of the log files. */
   async refresh(): Promise<void> {
     this.sessions = await this.reader.readAllSessions();
     this.loaded = true;
+    this.updateSummary();
     this._onDidChangeTreeData.fire();
+  }
+
+  /**
+   * Updates the TreeView description with the credits used in the current
+   * month (e.g. "140.6 credits · June"), shown dimmed beside the view title.
+   */
+  private updateSummary(): void {
+    if (!this.treeView) {
+      return;
+    }
+    const now = new Date();
+    const year = now.getFullYear();
+    const month = now.getMonth();
+    let monthCredits = 0;
+    for (const s of this.sessions) {
+      const d = new Date(s.timestamp);
+      if (d.getFullYear() === year && d.getMonth() === month) {
+        monthCredits += s.totalCredits;
+      }
+    }
+    const credits = Math.round(monthCredits * 10) / 10;
+    const monthLabel = now.toLocaleString(undefined, { month: "long" });
+    this.treeView.description = `${credits} credits · ${monthLabel}`;
   }
 
   /** Returns the currently loaded sessions (cached). */
@@ -203,6 +235,7 @@ export class SessionTreeDataProvider
     if (!this.loaded) {
       this.sessions = await this.reader.readAllSessions();
       this.loaded = true;
+      this.updateSummary();
     }
     // When empty, return nothing so the view's welcome content is shown.
     if (this.sessions.length === 0) {
