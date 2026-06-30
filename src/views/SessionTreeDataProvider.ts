@@ -143,13 +143,25 @@ export class SessionTreeDataProvider
   /** The owning TreeView, set after `createTreeView`, used to show a summary. */
   private treeView: vscode.TreeView<SessionTreeItem> | undefined;
   /**
-   * Active label filter. `undefined` means no filter (show all). Otherwise a
-   * set of label ids and/or the special `UNASSIGNED` token; a session is shown
-   * if its assignment matches any entry in the set.
+   * Active label filter. `undefined` means no label constraint (show all
+   * labels). Otherwise a set of label ids and/or the special `UNASSIGNED`
+   * token; a session matches the label dimension if its assignment is in the
+   * set.
    */
-  private filter: Set<string> | undefined;
+  private labelFilter: Set<string> | undefined;
+  /**
+   * Active repository filter. `undefined` means no repo constraint. Otherwise a
+   * set of repo keys (the session's `workspaceName`, or `UNKNOWN_REPO` for
+   * sessions without one); a session matches the repo dimension if its repo key
+   * is in the set.
+   *
+   * The two dimensions are combined with AND: a session is shown only when it
+   * satisfies both the label filter and the repo filter.
+   */
+  private repoFilter: Set<string> | undefined;
 
   static readonly UNASSIGNED = "__unassigned__";
+  static readonly UNKNOWN_REPO = "__unknown_repo__";
 
   constructor(
     private readonly reader: SessionReader,
@@ -201,19 +213,59 @@ export class SessionTreeDataProvider
     return this.sessions;
   }
 
-  /** Returns whether a filter is currently active. */
+  /** Whether any filter (label and/or repo) is currently active. */
   isFiltered(): boolean {
-    return this.filter !== undefined && this.filter.size > 0;
+    return (
+      (this.labelFilter !== undefined && this.labelFilter.size > 0) ||
+      (this.repoFilter !== undefined && this.repoFilter.size > 0)
+    );
   }
 
-  /** Returns the active filter set (label ids + UNASSIGNED token), if any. */
-  getFilter(): Set<string> | undefined {
-    return this.filter;
+  /** Returns the active label/repo filter sets, if any. */
+  getFilter(): { labels?: Set<string>; repos?: Set<string> } {
+    return { labels: this.labelFilter, repos: this.repoFilter };
   }
 
-  /** Applies a label filter. Pass an empty set or undefined to clear it. */
-  setFilter(ids: string[] | undefined): void {
-    this.filter = ids && ids.length > 0 ? new Set(ids) : undefined;
+  /**
+   * The repo key for a session: its workspace name, or `UNKNOWN_REPO` when no
+   * workspace name is available.
+   */
+  static repoKey(session: SessionCost): string {
+    return session.workspaceName ?? SessionTreeDataProvider.UNKNOWN_REPO;
+  }
+
+  /**
+   * Distinct repositories across loaded sessions, sorted by name. Sessions
+   * without a workspace name are surfaced as the `UNKNOWN_REPO` key.
+   */
+  getRepos(): { key: string; name: string }[] {
+    const seen = new Map<string, string>();
+    for (const s of this.sessions) {
+      const key = SessionTreeDataProvider.repoKey(s);
+      if (!seen.has(key)) {
+        seen.set(
+          key,
+          s.workspaceName ?? "Unknown workspace"
+        );
+      }
+    }
+    return [...seen.entries()]
+      .map(([key, name]) => ({ key, name }))
+      .sort((a, b) => a.name.localeCompare(b.name));
+  }
+
+  /**
+   * Applies the label and repo filters. Pass empty arrays/undefined for a
+   * dimension to remove that constraint.
+   */
+  setFilter(
+    labelIds: string[] | undefined,
+    repoKeys: string[] | undefined
+  ): void {
+    this.labelFilter =
+      labelIds && labelIds.length > 0 ? new Set(labelIds) : undefined;
+    this.repoFilter =
+      repoKeys && repoKeys.length > 0 ? new Set(repoKeys) : undefined;
     void vscode.commands.executeCommand(
       "setContext",
       "copilotCostTracker.filterActive",
@@ -224,7 +276,7 @@ export class SessionTreeDataProvider
 
   /** Clears any active filter and shows all sessions. */
   clearFilter(): void {
-    this.setFilter(undefined);
+    this.setFilter(undefined, undefined);
   }
 
   getTreeItem(element: SessionTreeItem): vscode.TreeItem {
@@ -258,11 +310,20 @@ export class SessionTreeDataProvider
     session: SessionCost,
     assignments: Record<string, string>
   ): boolean {
-    if (!this.filter || this.filter.size === 0) {
-      return true;
+    // Label dimension.
+    if (this.labelFilter && this.labelFilter.size > 0) {
+      const labelId = assignments[session.sessionId];
+      const key = labelId ? labelId : SessionTreeDataProvider.UNASSIGNED;
+      if (!this.labelFilter.has(key)) {
+        return false;
+      }
     }
-    const labelId = assignments[session.sessionId];
-    const key = labelId ? labelId : SessionTreeDataProvider.UNASSIGNED;
-    return this.filter.has(key);
+    // Repo dimension (combined with AND).
+    if (this.repoFilter && this.repoFilter.size > 0) {
+      if (!this.repoFilter.has(SessionTreeDataProvider.repoKey(session))) {
+        return false;
+      }
+    }
+    return true;
   }
 }

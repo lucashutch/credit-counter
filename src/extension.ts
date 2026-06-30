@@ -52,32 +52,61 @@ export function activate(context: vscode.ExtensionContext): void {
   );
 }
 
-/** Shows a multi-select QuickPick of labels (plus "Unassigned") to filter sessions. */
+/**
+ * Shows a multi-select QuickPick split into two sections — Labels and
+ * Repositories — letting the user pick any combination. A session is shown only
+ * when it satisfies both dimensions (AND): its label is among the picked labels
+ * (if any) and its repository is among the picked repositories (if any).
+ */
 async function filterSessions(
   state: StateManager,
   provider: SessionTreeDataProvider
 ): Promise<void> {
   const labels = state.getLabels();
+  const repos = provider.getRepos();
   const active = provider.getFilter();
 
-  type Pick = vscode.QuickPickItem & { id: string };
-  const items: Pick[] = [
-    ...labels.map<Pick>((l) => ({
+  type Pick = vscode.QuickPickItem & { id?: string; dimension?: "label" | "repo" };
+
+  const items: Pick[] = [];
+
+  // --- Labels section ----------------------------------------------------
+  items.push({ label: "Labels", kind: vscode.QuickPickItemKind.Separator });
+  for (const l of labels) {
+    items.push({
       label: l.name,
       id: l.id,
-      picked: active?.has(l.id) ?? false,
-    })),
-    {
-      label: "Unassigned",
-      description: "Sessions with no label",
-      id: SessionTreeDataProvider.UNASSIGNED,
-      picked: active?.has(SessionTreeDataProvider.UNASSIGNED) ?? false,
-    },
-  ];
+      dimension: "label",
+      picked: active.labels?.has(l.id) ?? false,
+    });
+  }
+  items.push({
+    label: "Unassigned",
+    description: "Sessions with no label",
+    id: SessionTreeDataProvider.UNASSIGNED,
+    dimension: "label",
+    picked: active.labels?.has(SessionTreeDataProvider.UNASSIGNED) ?? false,
+  });
+
+  // --- Repositories section ---------------------------------------------
+  if (repos.length > 0) {
+    items.push({
+      label: "Repositories",
+      kind: vscode.QuickPickItemKind.Separator,
+    });
+    for (const r of repos) {
+      items.push({
+        label: r.name,
+        id: r.key,
+        dimension: "repo",
+        picked: active.repos?.has(r.key) ?? false,
+      });
+    }
+  }
 
   const picked = await vscode.window.showQuickPick(items, {
-    title: "Filter Sessions by Label",
-    placeHolder: "Select labels to show (none = show all)",
+    title: "Filter Sessions by Label and Repository",
+    placeHolder: "Select labels and/or repositories (none = show all)",
     canPickMany: true,
   });
 
@@ -85,7 +114,14 @@ async function filterSessions(
   if (picked === undefined) {
     return;
   }
-  provider.setFilter(picked.map((p) => p.id));
+
+  const labelIds = picked
+    .filter((p) => p.dimension === "label" && p.id)
+    .map((p) => p.id as string);
+  const repoKeys = picked
+    .filter((p) => p.dimension === "repo" && p.id)
+    .map((p) => p.id as string);
+  provider.setFilter(labelIds, repoKeys);
 }
 
 export function deactivate(): void {
