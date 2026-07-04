@@ -71,11 +71,11 @@ describe("buildDashboardData", () => {
     ];
     const data = buildDashboardData(sessions, labels, {}, NOW);
 
-    assert.strictEqual(data.monthly.length, 30); // June has 30 days
+    assert.strictEqual(data.monthly.length, 15); // stops at current day (June 15)
     assert.strictEqual(data.monthly[0].cumulative, 30); // day 1: 10 + 20
     assert.strictEqual(data.monthly[1].cumulative, 30); // day 2: no change
     assert.strictEqual(data.monthly[2].cumulative, 35); // day 3: +5
-    assert.strictEqual(data.monthly[29].cumulative, 35); // end of month
+    assert.strictEqual(data.monthly[14].cumulative, 35); // current day (15th)
   });
 
   it("computes percent change versus the previous month", () => {

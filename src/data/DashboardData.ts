@@ -159,7 +159,12 @@ export function buildDashboardData(
 
   const monthly: DashboardData["monthly"] = [];
   let cumulative = 0;
-  for (let day = 1; day <= daysInMonth; day++) {
+  // Only plot up to the current day; leave the rest of the month blank
+  // instead of flatlining where there is no data yet.
+  const lastDay = year === now.getFullYear() && month === now.getMonth()
+    ? now.getDate()
+    : daysInMonth;
+  for (let day = 1; day <= lastDay; day++) {
     cumulative += perDay[day];
     monthly.push({ day, cumulative: round(cumulative) });
   }
