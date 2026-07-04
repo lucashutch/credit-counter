@@ -38,12 +38,29 @@ export interface CostEntry {
   credits: number;
 }
 
+/** Selectable time window for the per-label and per-session charts. */
+export type Period = "thisMonth" | "lastMonth" | "last3Months" | "allTime";
+
+/** A single per-session bar. */
+export interface SessionSlice {
+  label: string;
+  credits: number;
+  color: string;
+}
+
+/** A single per-label slice. */
+export interface LabelSlice {
+  name: string;
+  credits: number;
+  color: string;
+}
+
 /** Aggregated payload sent to the dashboard webview (Phase 5). */
 export interface DashboardData {
-  /** Per-session totals (top N), most expensive first. */
-  perSession: { label: string; credits: number; color: string }[];
-  /** Per-label totals, including an "Unassigned" bucket. */
-  perLabel: { name: string; credits: number; color: string }[];
+  /** Per-session totals (top N), most expensive first, keyed by period. */
+  perSession: Record<Period, SessionSlice[]>;
+  /** Per-label totals (incl. "Unassigned" bucket), keyed by period. */
+  perLabel: Record<Period, LabelSlice[]>;
   /** Daily cumulative credits for the current month. */
   monthly: { day: number; cumulative: number }[];
   /** Headline KPIs. */

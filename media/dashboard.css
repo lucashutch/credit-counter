@@ -87,6 +87,32 @@ body {
   font-weight: 600;
 }
 
+.card-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--gap);
+  margin-bottom: 12px;
+}
+.card-head h2 {
+  margin: 0;
+}
+
+.period-select {
+  background: var(--vscode-dropdown-background);
+  color: var(--vscode-dropdown-foreground);
+  border: 1px solid var(--vscode-dropdown-border, transparent);
+  border-radius: 4px;
+  padding: 3px 6px;
+  font-size: 0.85em;
+  font-family: inherit;
+  cursor: pointer;
+}
+.period-select:focus {
+  outline: 1px solid var(--vscode-focusBorder);
+  outline-offset: -1px;
+}
+
 .chart-wrap {
   position: relative;
   height: 300px;

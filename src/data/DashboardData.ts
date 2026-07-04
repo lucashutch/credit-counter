@@ -1,4 +1,11 @@
-import { DashboardData, Label, SessionCost } from "./types";
+import {
+  DashboardData,
+  Label,
+  LabelSlice,
+  Period,
+  SessionCost,
+  SessionSlice,
+} from "./types";
 
 /** Distinct palette used to color labels in the dashboard charts. */
 const PALETTE = [
@@ -17,8 +24,38 @@ const PALETTE = [
 const UNASSIGNED_COLOR = "#8c8c8c";
 const TOP_SESSIONS = 15;
 
+/** Periods offered by the dashboard's chart selectors. */
+const PERIODS: Period[] = ["thisMonth", "lastMonth", "last3Months", "allTime"];
+
 function round(n: number): number {
   return Math.round(n * 10) / 10;
+}
+
+/** Inclusive-start, exclusive-end epoch bounds for a period, based on `now`. */
+function periodBounds(period: Period, now: Date): { start: number; end: number } {
+  const year = now.getFullYear();
+  const month = now.getMonth();
+  const monthStart = new Date(year, month, 1).getTime();
+  const nextMonthStart = new Date(year, month + 1, 1).getTime();
+  switch (period) {
+    case "thisMonth":
+      return { start: monthStart, end: nextMonthStart };
+    case "lastMonth":
+      return { start: new Date(year, month - 1, 1).getTime(), end: monthStart };
+    case "last3Months":
+      return { start: new Date(year, month - 2, 1).getTime(), end: nextMonthStart };
+    case "allTime":
+      return { start: 0, end: Number.MAX_SAFE_INTEGER };
+  }
+}
+
+function filterByPeriod(
+  sessions: SessionCost[],
+  period: Period,
+  now: Date
+): SessionCost[] {
+  const { start, end } = periodBounds(period, now);
+  return sessions.filter((s) => s.timestamp >= start && s.timestamp < end);
 }
 
 /**
@@ -44,46 +81,60 @@ export function buildDashboardData(
     return colorById.get(key) ?? UNASSIGNED_COLOR;
   };
 
-  // --- Per session (top N by credits) ------------------------------------
-  const perSession = [...sessions]
-    .filter((s) => s.totalCredits > 0)
-    .sort((a, b) => b.totalCredits - a.totalCredits)
-    .slice(0, TOP_SESSIONS)
-    .map((s) => ({
-      label: s.firstPrompt || s.sessionId.slice(0, 8),
-      credits: round(s.totalCredits),
-      color: colorForSession(s.sessionId),
-    }));
-
-  // --- Per label (including Unassigned) ----------------------------------
   const labelById = new Map(labels.map((l) => [l.id, l]));
-  const totals = new Map<string, number>();
-  for (const s of sessions) {
-    const labelId = assignments[s.sessionId];
-    const key = labelId && labelById.has(labelId) ? labelId : "__unassigned__";
-    totals.set(key, (totals.get(key) ?? 0) + s.totalCredits);
-  }
 
-  const perLabel: DashboardData["perLabel"] = [];
-  labels.forEach((label) => {
-    const credits = totals.get(label.id) ?? 0;
-    if (credits > 0) {
-      perLabel.push({
-        name: label.name,
-        credits: round(credits),
-        color: colorById.get(label.id) ?? UNASSIGNED_COLOR,
+  // --- Per session (top N by credits), computed per period ---------------
+  const buildPerSession = (subset: SessionCost[]): SessionSlice[] =>
+    [...subset]
+      .filter((s) => s.totalCredits > 0)
+      .sort((a, b) => b.totalCredits - a.totalCredits)
+      .slice(0, TOP_SESSIONS)
+      .map((s) => ({
+        label: s.firstPrompt || s.sessionId.slice(0, 8),
+        credits: round(s.totalCredits),
+        color: colorForSession(s.sessionId),
+      }));
+
+  // --- Per label (including Unassigned), computed per period -------------
+  const buildPerLabel = (subset: SessionCost[]): LabelSlice[] => {
+    const totals = new Map<string, number>();
+    for (const s of subset) {
+      const labelId = assignments[s.sessionId];
+      const key =
+        labelId && labelById.has(labelId) ? labelId : "__unassigned__";
+      totals.set(key, (totals.get(key) ?? 0) + s.totalCredits);
+    }
+
+    const result: LabelSlice[] = [];
+    labels.forEach((label) => {
+      const credits = totals.get(label.id) ?? 0;
+      if (credits > 0) {
+        result.push({
+          name: label.name,
+          credits: round(credits),
+          color: colorById.get(label.id) ?? UNASSIGNED_COLOR,
+        });
+      }
+    });
+    const unassigned = totals.get("__unassigned__") ?? 0;
+    if (unassigned > 0) {
+      result.push({
+        name: "Unassigned",
+        credits: round(unassigned),
+        color: UNASSIGNED_COLOR,
       });
     }
-  });
-  const unassigned = totals.get("__unassigned__") ?? 0;
-  if (unassigned > 0) {
-    perLabel.push({
-      name: "Unassigned",
-      credits: round(unassigned),
-      color: UNASSIGNED_COLOR,
-    });
+    result.sort((a, b) => b.credits - a.credits);
+    return result;
+  };
+
+  const perSession = {} as Record<Period, SessionSlice[]>;
+  const perLabel = {} as Record<Period, LabelSlice[]>;
+  for (const period of PERIODS) {
+    const subset = filterByPeriod(sessions, period, now);
+    perSession[period] = buildPerSession(subset);
+    perLabel[period] = buildPerLabel(subset);
   }
-  perLabel.sort((a, b) => b.credits - a.credits);
 
   // --- Monthly timeseries (cumulative, current month) --------------------
   const year = now.getFullYear();
@@ -131,7 +182,8 @@ export function buildDashboardData(
     monthly,
     kpis: {
       totalCredits,
-      activeLabels: perLabel.filter((l) => l.name !== "Unassigned").length,
+      activeLabels: perLabel.allTime.filter((l) => l.name !== "Unassigned")
+        .length,
       monthCredits: round(monthCredits),
       prevMonthCredits: round(prevMonthCredits),
       percentChange,

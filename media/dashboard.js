@@ -16,8 +16,26 @@
     .getPropertyValue("--vscode-font-family")
     .trim();
 
+  /** @type {any} */
+  let lastData = null;
+
+  const labelPeriodEl = document.getElementById("labelPeriod");
+  const sessionPeriodEl = document.getElementById("sessionPeriod");
+
   document.getElementById("refresh").addEventListener("click", () => {
     vscode.postMessage({ type: "refresh" });
+  });
+
+  labelPeriodEl.addEventListener("change", () => {
+    if (lastData) {
+      drawLabelChart(lastData.perLabel[labelPeriodEl.value]);
+    }
+  });
+
+  sessionPeriodEl.addEventListener("change", () => {
+    if (lastData) {
+      drawSessionChart(lastData.perSession[sessionPeriodEl.value]);
+    }
   });
 
   window.addEventListener("message", (event) => {
@@ -32,9 +50,10 @@
   }
 
   function render(data) {
+    lastData = data;
     const hasData =
-      data.perSession.length > 0 ||
-      data.perLabel.length > 0 ||
+      data.perSession.allTime.length > 0 ||
+      data.perLabel.allTime.length > 0 ||
       data.kpis.totalCredits > 0;
     document.getElementById("empty").classList.toggle("hidden", hasData);
 
@@ -54,8 +73,8 @@
     document.getElementById("timeseries-title").textContent =
       "Total Cost Timeseries · " + data.monthLabel;
 
-    drawLabelChart(data.perLabel);
-    drawSessionChart(data.perSession);
+    drawLabelChart(data.perLabel[labelPeriodEl.value]);
+    drawSessionChart(data.perSession[sessionPeriodEl.value]);
     drawMonthChart(data.monthly);
   }
 

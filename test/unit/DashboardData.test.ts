@@ -37,7 +37,7 @@ describe("buildDashboardData", () => {
     const data = buildDashboardData(sessions, labels, assignments, NOW);
 
     const byName = Object.fromEntries(
-      data.perLabel.map((l) => [l.name, l.credits])
+      data.perLabel.allTime.map((l) => [l.name, l.credits])
     );
     assert.strictEqual(byName["Alpha"], 150);
     assert.strictEqual(byName["Unassigned"], 30);
@@ -49,18 +49,18 @@ describe("buildDashboardData", () => {
     const assignments = { s1: "L1" };
     const data = buildDashboardData(sessions, labels, assignments, NOW);
 
-    const labelColor = data.perLabel.find((l) => l.name === "Alpha")?.color;
-    const sessionColor = data.perSession[0].color;
+    const labelColor = data.perLabel.allTime.find((l) => l.name === "Alpha")?.color;
+    const sessionColor = data.perSession.allTime[0].color;
     assert.strictEqual(sessionColor, labelColor);
   });
 
   it("uses the unassigned color for sessions without a label", () => {
     const sessions = [session("s1", 100, ms(2026, 5, 2))];
     const data = buildDashboardData(sessions, labels, {}, NOW);
-    const unassignedColor = data.perLabel.find(
+    const unassignedColor = data.perLabel.allTime.find(
       (l) => l.name === "Unassigned"
     )?.color;
-    assert.strictEqual(data.perSession[0].color, unassignedColor);
+    assert.strictEqual(data.perSession.allTime[0].color, unassignedColor);
   });
 
   it("builds a cumulative monthly series for the current month", () => {
@@ -100,8 +100,8 @@ describe("buildDashboardData", () => {
       session("s" + i, i + 1, ms(2026, 5, 2))
     );
     const data = buildDashboardData(sessions, labels, {}, NOW);
-    assert.strictEqual(data.perSession.length, 15);
-    assert.strictEqual(data.perSession[0].credits, 20); // most expensive first
+    assert.strictEqual(data.perSession.allTime.length, 15);
+    assert.strictEqual(data.perSession.allTime[0].credits, 20); // most expensive first
   });
 
   it("excludes zero-credit sessions from the per-session list", () => {
@@ -110,7 +110,36 @@ describe("buildDashboardData", () => {
       session("s2", 5, ms(2026, 5, 2)),
     ];
     const data = buildDashboardData(sessions, labels, {}, NOW);
-    assert.strictEqual(data.perSession.length, 1);
-    assert.strictEqual(data.perSession[0].label, "s2");
+    assert.strictEqual(data.perSession.allTime.length, 1);
+    assert.strictEqual(data.perSession.allTime[0].label, "s2");
+  });
+
+  it("filters the per-label and per-session charts by period", () => {
+    const sessions = [
+      session("thisMo", 10, ms(2026, 5, 5)), // June (this month)
+      session("lastMo", 20, ms(2026, 4, 5)), // May (last month)
+      session("threeMo", 30, ms(2026, 3, 5)), // April (within last 3 months)
+      session("old", 40, ms(2026, 0, 5)), // January (all time only)
+    ];
+    const data = buildDashboardData(sessions, labels, {}, NOW);
+
+    const ids = (slices: { label: string }[]) => slices.map((s) => s.label).sort();
+
+    assert.deepStrictEqual(ids(data.perSession.thisMonth), ["thisMo"]);
+    assert.deepStrictEqual(ids(data.perSession.lastMonth), ["lastMo"]);
+    assert.deepStrictEqual(ids(data.perSession.last3Months), [
+      "lastMo",
+      "thisMo",
+      "threeMo",
+    ]);
+    assert.deepStrictEqual(ids(data.perSession.allTime), [
+      "lastMo",
+      "old",
+      "thisMo",
+      "threeMo",
+    ]);
+
+    assert.strictEqual(data.perLabel.thisMonth[0].credits, 10);
+    assert.strictEqual(data.perLabel.allTime[0].credits, 100);
   });
 });
