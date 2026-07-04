@@ -116,10 +116,10 @@ export class DashboardPanel {
   </header>
 
   <section class="kpis">
-    <div class="kpi"><div class="kpi-value" id="kpi-total">—</div><div class="kpi-label">Total Credits</div></div>
-    <div class="kpi"><div class="kpi-value" id="kpi-labels">—</div><div class="kpi-label">Active Labels</div></div>
     <div class="kpi"><div class="kpi-value" id="kpi-month">—</div><div class="kpi-label" id="kpi-month-label">This Month</div></div>
     <div class="kpi"><div class="kpi-value" id="kpi-change">—</div><div class="kpi-label">vs Prev Month</div></div>
+    <div class="kpi"><div class="kpi-value" id="kpi-labels">—</div><div class="kpi-label">Active Labels</div></div>
+    <div class="kpi"><div class="kpi-value" id="kpi-total">—</div><div class="kpi-label">Total Credits</div></div>
   </section>
 
   <section class="grid">
