@@ -38,6 +38,10 @@ export class LabelTreeDataProvider
   }
 
   getChildren(): vscode.ProviderResult<LabelTreeItem[]> {
-    return this.state.getLabels().map((label) => new LabelTreeItem(label));
+    return this.state
+      .getLabels()
+      .slice()
+      .sort((a, b) => a.name.localeCompare(b.name))
+      .map((label) => new LabelTreeItem(label));
   }
 }
