@@ -8,7 +8,7 @@ import { SessionCost } from "./types";
 import { sumCreditsInLine } from "./CostParser";
 
 /** `globalState` key under which the parsed-session cache is persisted. */
-const CACHE_KEY = "copilotCostTracker.sessionCache";
+const CACHE_KEY = "creditCounter.sessionCache";
 
 /** SQLite `ItemTable` key holding the chat-session index JSON. */
 const SESSION_INDEX_KEY = "chat.ChatSessionStore.index";

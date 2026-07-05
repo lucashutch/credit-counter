@@ -268,7 +268,7 @@ export class SessionTreeDataProvider
       repoKeys && repoKeys.length > 0 ? new Set(repoKeys) : undefined;
     void vscode.commands.executeCommand(
       "setContext",
-      "copilotCostTracker.filterActive",
+      "creditCounter.filterActive",
       this.isFiltered()
     );
     this._onDidChangeTreeData.fire();

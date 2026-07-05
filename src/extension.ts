@@ -13,7 +13,7 @@ export function activate(context: vscode.ExtensionContext): void {
   const sessionProvider = new SessionTreeDataProvider(reader, state);
 
   const sessionsView = vscode.window.createTreeView(
-    "copilotCostTracker.sessions",
+    "creditCounter.sessions",
     { treeDataProvider: sessionProvider }
   );
   sessionProvider.setTreeView(sessionsView);
@@ -21,7 +21,7 @@ export function activate(context: vscode.ExtensionContext): void {
   context.subscriptions.push(
     sessionsView,
     vscode.window.registerTreeDataProvider(
-      "copilotCostTracker.labels",
+      "creditCounter.labels",
       labelProvider
     )
   );
@@ -34,19 +34,19 @@ export function activate(context: vscode.ExtensionContext): void {
 
   // Dashboard (Phase 5).
   context.subscriptions.push(
-    vscode.commands.registerCommand("copilotCostTracker.openDashboard", () =>
+    vscode.commands.registerCommand("creditCounter.openDashboard", () =>
       DashboardPanel.show(context.extensionUri, reader, state)
     ),
     vscode.commands.registerCommand(
-      "copilotCostTracker.refreshSessions",
+      "creditCounter.refreshSessions",
       () => sessionProvider.refresh()
     ),
     vscode.commands.registerCommand(
-      "copilotCostTracker.filterSessions",
+      "creditCounter.filterSessions",
       () => filterSessions(state, sessionProvider)
     ),
     vscode.commands.registerCommand(
-      "copilotCostTracker.clearFilter",
+      "creditCounter.clearFilter",
       () => sessionProvider.clearFilter()
     )
   );

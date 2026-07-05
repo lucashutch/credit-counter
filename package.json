@@ -1,6 +1,6 @@
 {
-	"name": "copilot-cost-tracker",
-	"displayName": "Copilot Cost Tracker",
+	"name": "credit-counter",
+	"displayName": "Credit Counter",
 	"description": "Track, label, and visualize the credit cost of your local Copilot chat sessions.",
 	"version": "0.0.1",
 	"publisher": "local",
@@ -17,136 +17,136 @@
 		"viewsContainers": {
 			"activitybar": [
 				{
-					"id": "copilotCostTracker",
-					"title": "Copilot Cost Tracker",
+					"id": "creditCounter",
+					"title": "Credit Counter",
 					"icon": "media/icon.svg"
 				}
 			]
 		},
 		"views": {
-			"copilotCostTracker": [
+			"creditCounter": [
 				{
-					"id": "copilotCostTracker.labels",
+					"id": "creditCounter.labels",
 					"name": "Label Management"
 				},
 				{
-					"id": "copilotCostTracker.sessions",
+					"id": "creditCounter.sessions",
 					"name": "Chat Sessions"
 				}
 			]
 		},
 		"viewsWelcome": [
 			{
-				"view": "copilotCostTracker.labels",
-				"contents": "[$(graph) Open Dashboard](command:copilotCostTracker.openDashboard)\n\nNo labels yet.\n[$(add) Add Label](command:copilotCostTracker.addLabel)\n"
+				"view": "creditCounter.labels",
+				"contents": "[$(graph) Open Dashboard](command:creditCounter.openDashboard)\n\nNo labels yet.\n[$(add) Add Label](command:creditCounter.addLabel)\n"
 			},
 			{
-				"view": "copilotCostTracker.sessions",
-				"contents": "No chat sessions found.\nCost data is read from your local Copilot chat logs.\n[$(refresh) Refresh](command:copilotCostTracker.refreshSessions)\n"
+				"view": "creditCounter.sessions",
+				"contents": "No chat sessions found.\nCost data is read from your local Copilot chat logs.\n[$(refresh) Refresh](command:creditCounter.refreshSessions)\n"
 			}
 		],
 		"commands": [
 			{
-				"command": "copilotCostTracker.openDashboard",
+				"command": "creditCounter.openDashboard",
 				"title": "Open Dashboard",
-				"category": "Copilot Cost Tracker",
+				"category": "Credit Counter",
 				"icon": "$(graph)"
 			},
 			{
-				"command": "copilotCostTracker.addLabel",
+				"command": "creditCounter.addLabel",
 				"title": "Add Label",
-				"category": "Copilot Cost Tracker",
+				"category": "Credit Counter",
 				"icon": "$(add)"
 			},
 			{
-				"command": "copilotCostTracker.renameLabel",
+				"command": "creditCounter.renameLabel",
 				"title": "Rename Label",
-				"category": "Copilot Cost Tracker",
+				"category": "Credit Counter",
 				"icon": "$(edit)"
 			},
 			{
-				"command": "copilotCostTracker.deleteLabel",
+				"command": "creditCounter.deleteLabel",
 				"title": "Delete Label",
-				"category": "Copilot Cost Tracker",
+				"category": "Credit Counter",
 				"icon": "$(trash)"
 			},
 			{
-				"command": "copilotCostTracker.assignLabel",
+				"command": "creditCounter.assignLabel",
 				"title": "Assign Label",
-				"category": "Copilot Cost Tracker"
+				"category": "Credit Counter"
 			},
 			{
-				"command": "copilotCostTracker.copyMetadata",
+				"command": "creditCounter.copyMetadata",
 				"title": "Copy Metadata",
-				"category": "Copilot Cost Tracker",
+				"category": "Credit Counter",
 				"icon": "$(copy)"
 			},
 			{
-				"command": "copilotCostTracker.refreshSessions",
+				"command": "creditCounter.refreshSessions",
 				"title": "Refresh Sessions",
-				"category": "Copilot Cost Tracker",
+				"category": "Credit Counter",
 				"icon": "$(refresh)"
 			},
 			{
-				"command": "copilotCostTracker.filterSessions",
+				"command": "creditCounter.filterSessions",
 				"title": "Filter Sessions",
-				"category": "Copilot Cost Tracker",
+				"category": "Credit Counter",
 				"icon": "$(filter)"
 			},
 			{
-				"command": "copilotCostTracker.clearFilter",
+				"command": "creditCounter.clearFilter",
 				"title": "Clear Filter",
-				"category": "Copilot Cost Tracker",
+				"category": "Credit Counter",
 				"icon": "$(filter-filled)"
 			}
 		],
 		"menus": {
 			"view/title": [
 				{
-					"command": "copilotCostTracker.openDashboard",
-					"when": "view == copilotCostTracker.labels",
+					"command": "creditCounter.openDashboard",
+					"when": "view == creditCounter.labels",
 					"group": "navigation@1"
 				},
 				{
-					"command": "copilotCostTracker.addLabel",
-					"when": "view == copilotCostTracker.labels",
+					"command": "creditCounter.addLabel",
+					"when": "view == creditCounter.labels",
 					"group": "navigation@2"
 				},
 				{
-					"command": "copilotCostTracker.filterSessions",
-					"when": "view == copilotCostTracker.sessions",
+					"command": "creditCounter.filterSessions",
+					"when": "view == creditCounter.sessions",
 					"group": "navigation@1"
 				},
 				{
-					"command": "copilotCostTracker.clearFilter",
-					"when": "view == copilotCostTracker.sessions && copilotCostTracker.filterActive",
+					"command": "creditCounter.clearFilter",
+					"when": "view == creditCounter.sessions && creditCounter.filterActive",
 					"group": "navigation@2"
 				},
 				{
-					"command": "copilotCostTracker.refreshSessions",
-					"when": "view == copilotCostTracker.sessions",
+					"command": "creditCounter.refreshSessions",
+					"when": "view == creditCounter.sessions",
 					"group": "navigation@3"
 				}
 			],
 			"view/item/context": [
 				{
-					"command": "copilotCostTracker.renameLabel",
-					"when": "view == copilotCostTracker.labels && viewItem == label",
+					"command": "creditCounter.renameLabel",
+					"when": "view == creditCounter.labels && viewItem == label",
 					"group": "inline@1"
 				},
 				{
-					"command": "copilotCostTracker.deleteLabel",
-					"when": "view == copilotCostTracker.labels && viewItem == label",
+					"command": "creditCounter.deleteLabel",
+					"when": "view == creditCounter.labels && viewItem == label",
 					"group": "inline@2"
 				},
 				{
-					"command": "copilotCostTracker.assignLabel",
-					"when": "view == copilotCostTracker.sessions && viewItem == session",
+					"command": "creditCounter.assignLabel",
+					"when": "view == creditCounter.sessions && viewItem == session",
 					"group": "1_assign"
 				},
 				{
-					"command": "copilotCostTracker.copyMetadata",
-					"when": "view == copilotCostTracker.sessions && viewItem == session",
+					"command": "creditCounter.copyMetadata",
+					"when": "view == creditCounter.sessions && viewItem == session",
 					"group": "9_copy"
 				}
 			]

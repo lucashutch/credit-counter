@@ -1,7 +1,7 @@
-# SPEC.md: Chat Cost Dashboard Extension
+# SPEC.md: Credit Counter Extension
 
 ## 1. Overview
-The Chat Cost Dashboard is a Visual Studio Code extension designed to track, categorize, and visualize the costs (credits) associated with local chat sessions. It provides an intuitive sidebar for managing chat sessions and assigning labels, alongside a rich dashboard for cost analysis.
+The Credit Counter is a Visual Studio Code extension designed to track, categorize, and visualize the costs (credits) associated with local chat sessions. It provides an intuitive sidebar for managing chat sessions and assigning labels, alongside a rich dashboard for cost analysis.
 
 ## 2. Features and User Experience
 
@@ -60,7 +60,7 @@ Clicking "Open Dashboard" launches a Webview in a new editor tab. A shared perio
 
 ```text
 +-------------------------------------------------------------+
-|  CHAT COST ANALYTICS               [ Period v ] [ Refresh ] |
+|  CREDIT COUNTER                    [ Period v ] [ Refresh ] |
 +-------------------------------------------------------------+
 |                                                             |
 | [ THIS MONTH ] [ % vs PREV ] [ ACTIVE LABELS ] [ TOTAL ]    |

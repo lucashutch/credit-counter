@@ -11,15 +11,15 @@ export function registerLabelCommands(
   state: StateManager
 ): vscode.Disposable[] {
   return [
-    vscode.commands.registerCommand("copilotCostTracker.addLabel", () =>
+    vscode.commands.registerCommand("creditCounter.addLabel", () =>
       addLabel(state)
     ),
     vscode.commands.registerCommand(
-      "copilotCostTracker.renameLabel",
+      "creditCounter.renameLabel",
       (item?: LabelTreeItem) => renameLabel(state, item)
     ),
     vscode.commands.registerCommand(
-      "copilotCostTracker.deleteLabel",
+      "creditCounter.deleteLabel",
       (item?: LabelTreeItem) => deleteLabel(state, item)
     ),
   ];
@@ -33,11 +33,11 @@ export function registerSessionCommands(
 ): vscode.Disposable[] {
   return [
     vscode.commands.registerCommand(
-      "copilotCostTracker.assignLabel",
+      "creditCounter.assignLabel",
       (item?: SessionTreeItem) => assignLabel(state, item)
     ),
     vscode.commands.registerCommand(
-      "copilotCostTracker.copyMetadata",
+      "creditCounter.copyMetadata",
       (item?: SessionTreeItem) => copyMetadata(item)
     ),
   ];
@@ -72,7 +72,7 @@ async function assignLabel(
       "Add Label"
     );
     if (action === "Add Label") {
-      await vscode.commands.executeCommand("copilotCostTracker.addLabel");
+      await vscode.commands.executeCommand("creditCounter.addLabel");
     }
     return;
   }

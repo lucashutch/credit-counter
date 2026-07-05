@@ -1,5 +1,5 @@
 /**
- * Shared data-model types for the Copilot Cost Tracker extension.
+ * Shared data-model types for the Credit Counter extension.
  */
 
 /** A user-defined label that can be assigned to chat sessions. */

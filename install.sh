@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 #
-# install.sh — Build the Copilot Cost Tracker extension and install it directly
+# install.sh — Build the Credit Counter extension and install it directly
 # into the local VS Code extensions directory (no Marketplace / no .vsix needed).
 #
 # Usage:

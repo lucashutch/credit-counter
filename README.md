@@ -1,4 +1,4 @@
-# Copilot Cost Tracker
+# Credit Counter
 
 Track, label, and visualize the credit cost of your local Copilot chat sessions — right inside VS Code.
 
@@ -7,7 +7,7 @@ The extension reads your **local Copilot chat logs** (no network calls, no telem
 ## Features
 
 ### Activity bar & sidebar
-- A dedicated **Copilot Cost Tracker** icon in the Activity Bar.
+- A dedicated **Credit Counter** icon in the Activity Bar.
 - **Label Management** — add, rename, and delete labels (e.g. *Project Alpha*, *Debugging*, *Research*).
 - **Chat Sessions** — every detected session, most recent first, showing its title, total credits, and assigned label.
 - **Open Dashboard** button at the top of the sidebar.
@@ -66,12 +66,12 @@ npm test         # runs the unit suite (Mocha + ts-node)
 
 | Command | Description |
 | --- | --- |
-| `Copilot Cost Tracker: Open Dashboard` | Open the analytics dashboard |
-| `Copilot Cost Tracker: Add Label` | Create a new label |
-| `Copilot Cost Tracker: Rename Label` | Rename an existing label |
-| `Copilot Cost Tracker: Delete Label` | Delete a label (and its assignments) |
-| `Copilot Cost Tracker: Assign Label` | Assign a label to a session (right-click) |
-| `Copilot Cost Tracker: Refresh Sessions` | Re-read the chat logs |
+| `Credit Counter: Open Dashboard` | Open the analytics dashboard |
+| `Credit Counter: Add Label` | Create a new label |
+| `Credit Counter: Rename Label` | Rename an existing label |
+| `Credit Counter: Delete Label` | Delete a label (and its assignments) |
+| `Credit Counter: Assign Label` | Assign a label to a session (right-click) |
+| `Credit Counter: Refresh Sessions` | Re-read the chat logs |
 
 ## Privacy
 

@@ -2,8 +2,8 @@ import * as vscode from "vscode";
 import { randomUUID } from "crypto";
 import { Label } from "../data/types";
 
-const LABELS_KEY = "copilotCostTracker.labels";
-const ASSIGNMENTS_KEY = "copilotCostTracker.assignments";
+const LABELS_KEY = "creditCounter.labels";
+const ASSIGNMENTS_KEY = "creditCounter.assignments";
 
 /** Map of sessionId -> labelId. */
 type AssignmentMap = Record<string, string>;

@@ -5,7 +5,7 @@ import { buildDashboardData } from "../data/DashboardData";
 
 /** Manages the singleton dashboard webview panel. */
 export class DashboardPanel {
-  public static readonly viewType = "copilotCostTracker.dashboard";
+  public static readonly viewType = "creditCounter.dashboard";
   private static current: DashboardPanel | undefined;
 
   private readonly panel: vscode.WebviewPanel;
@@ -26,7 +26,7 @@ export class DashboardPanel {
 
     const panel = vscode.window.createWebviewPanel(
       DashboardPanel.viewType,
-      "Copilot Cost Dashboard",
+      "Credit Counter",
       column,
       {
         enableScripts: true,
@@ -107,11 +107,11 @@ export class DashboardPanel {
   <meta http-equiv="Content-Security-Policy" content="${csp}" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <link href="${styleUri}" rel="stylesheet" />
-  <title>Copilot Cost Dashboard</title>
+  <title>Credit Counter</title>
 </head>
 <body>
   <header class="topbar">
-    <h1>Copilot Cost Analytics</h1>
+    <h1>Credit Counter</h1>
     <div class="topbar-actions">
       <select id="period" class="period-select" aria-label="Chart period">
         <option value="thisMonth" selected>This month</option>
