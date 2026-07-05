@@ -28,6 +28,12 @@ body {
   margin: 0;
 }
 
+.topbar-actions {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
 .btn {
   background: var(--vscode-button-background);
   color: var(--vscode-button-foreground);

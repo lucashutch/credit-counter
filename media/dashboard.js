@@ -19,22 +19,16 @@
   /** @type {any} */
   let lastData = null;
 
-  const labelPeriodEl = document.getElementById("labelPeriod");
-  const sessionPeriodEl = document.getElementById("sessionPeriod");
+  const periodEl = document.getElementById("period");
 
   document.getElementById("refresh").addEventListener("click", () => {
     vscode.postMessage({ type: "refresh" });
   });
 
-  labelPeriodEl.addEventListener("change", () => {
+  periodEl.addEventListener("change", () => {
     if (lastData) {
-      drawLabelChart(lastData.perLabel[labelPeriodEl.value]);
-    }
-  });
-
-  sessionPeriodEl.addEventListener("change", () => {
-    if (lastData) {
-      drawSessionChart(lastData.perSession[sessionPeriodEl.value]);
+      drawLabelChart(lastData.perLabel[periodEl.value]);
+      drawSessionChart(lastData.perSession[periodEl.value]);
     }
   });
 
@@ -73,8 +67,8 @@
     document.getElementById("timeseries-title").textContent =
       "Total Cost Timeseries · " + data.monthLabel;
 
-    drawLabelChart(data.perLabel[labelPeriodEl.value]);
-    drawSessionChart(data.perSession[sessionPeriodEl.value]);
+    drawLabelChart(data.perLabel[periodEl.value]);
+    drawSessionChart(data.perSession[periodEl.value]);
     drawMonthChart(data.monthly, data.prevMonthly, data.monthLabel, data.prevMonthLabel);
   }
 

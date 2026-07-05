@@ -112,7 +112,15 @@ export class DashboardPanel {
 <body>
   <header class="topbar">
     <h1>Copilot Cost Analytics</h1>
-    <button id="refresh" class="btn">↻ Refresh</button>
+    <div class="topbar-actions">
+      <select id="period" class="period-select" aria-label="Chart period">
+        <option value="thisMonth" selected>This month</option>
+        <option value="lastMonth">Last month</option>
+        <option value="last3Months">Last 3 months</option>
+        <option value="allTime">All time</option>
+      </select>
+      <button id="refresh" class="btn">↻ Refresh</button>
+    </div>
   </header>
 
   <section class="kpis">
@@ -126,24 +134,12 @@ export class DashboardPanel {
     <div class="card">
       <div class="card-head">
         <h2>Cost per Label</h2>
-        <select id="labelPeriod" class="period-select" aria-label="Cost per Label period">
-          <option value="thisMonth" selected>This month</option>
-          <option value="lastMonth">Last month</option>
-          <option value="last3Months">Last 3 months</option>
-          <option value="allTime">All time</option>
-        </select>
       </div>
       <div class="chart-wrap"><canvas id="labelChart"></canvas></div>
     </div>
     <div class="card">
       <div class="card-head">
         <h2>Cost per Session (Top 15)</h2>
-        <select id="sessionPeriod" class="period-select" aria-label="Cost per Session period">
-          <option value="thisMonth" selected>This month</option>
-          <option value="lastMonth">Last month</option>
-          <option value="last3Months">Last 3 months</option>
-          <option value="allTime">All time</option>
-        </select>
       </div>
       <div class="chart-wrap"><canvas id="sessionChart"></canvas></div>
     </div>
