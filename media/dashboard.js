@@ -75,7 +75,7 @@
 
     drawLabelChart(data.perLabel[labelPeriodEl.value]);
     drawSessionChart(data.perSession[sessionPeriodEl.value]);
-    drawMonthChart(data.monthly);
+    drawMonthChart(data.monthly, data.prevMonthly, data.monthLabel, data.prevMonthLabel);
   }
 
   function destroy(key) {
@@ -133,20 +133,49 @@
     });
   }
 
-  function drawMonthChart(monthly) {
+  function drawMonthChart(monthly, prevMonthly, monthLabel, prevMonthLabel) {
     destroy("month");
     const ctx = document.getElementById("monthChart");
+    prevMonthly = prevMonthly || [];
+    // Align both series on day-of-month so they can be compared directly.
+    const maxDay = Math.max(
+      monthly.length ? monthly[monthly.length - 1].day : 0,
+      prevMonthly.length ? prevMonthly[prevMonthly.length - 1].day : 0
+    );
+    const labels = [];
+    for (let d = 1; d <= maxDay; d++) {
+      labels.push(d);
+    }
+    const byDay = (series) => {
+      const arr = new Array(maxDay).fill(null);
+      series.forEach((m) => {
+        if (m.day >= 1 && m.day <= maxDay) {
+          arr[m.day - 1] = m.cumulative;
+        }
+      });
+      return arr;
+    };
     charts.month = new Chart(ctx, {
       type: "line",
       data: {
-        labels: monthly.map((m) => m.day),
+        labels: labels,
         datasets: [
           {
-            label: "Cumulative credits",
-            data: monthly.map((m) => m.cumulative),
+            label: monthLabel || "This month",
+            data: byDay(monthly),
             borderColor: "#59a14f",
             backgroundColor: "rgba(89,161,79,0.15)",
             fill: true,
+            tension: 0.25,
+            pointRadius: 0,
+          },
+          {
+            label: prevMonthLabel || "Last month",
+            data: byDay(prevMonthly),
+            borderColor: "#9c9c9c",
+            backgroundColor: "rgba(156,156,156,0.08)",
+            borderDash: [6, 4],
+            fill: false,
             tension: 0.25,
             pointRadius: 0,
           },
@@ -155,7 +184,7 @@
       options: {
         responsive: true,
         maintainAspectRatio: false,
-        plugins: { legend: { display: false } },
+        plugins: { legend: { display: true } },
         scales: {
           x: { title: { display: true, text: "Day of month" } },
           y: { beginAtZero: true },

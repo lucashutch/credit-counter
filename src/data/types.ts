@@ -63,6 +63,10 @@ export interface DashboardData {
   perLabel: Record<Period, LabelSlice[]>;
   /** Daily cumulative credits for the current month. */
   monthly: { day: number; cumulative: number }[];
+  /** Daily cumulative credits for the previous month (full month). */
+  prevMonthly: { day: number; cumulative: number }[];
+  /** Previous month label, e.g. "May 2026". */
+  prevMonthLabel: string;
   /** Headline KPIs. */
   kpis: {
     totalCredits: number;

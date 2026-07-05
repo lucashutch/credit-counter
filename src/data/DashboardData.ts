@@ -146,6 +146,8 @@ export function buildDashboardData(
   let prevMonthCredits = 0;
   const prevMonth = month === 0 ? 11 : month - 1;
   const prevYear = month === 0 ? year - 1 : year;
+  const daysInPrevMonth = new Date(prevYear, prevMonth + 1, 0).getDate();
+  const prevPerDay = new Array(daysInPrevMonth + 1).fill(0); // 1-indexed
 
   for (const s of sessions) {
     const d = new Date(s.timestamp);
@@ -153,6 +155,7 @@ export function buildDashboardData(
       perDay[d.getDate()] += s.totalCredits;
       monthCredits += s.totalCredits;
     } else if (d.getFullYear() === prevYear && d.getMonth() === prevMonth) {
+      prevPerDay[d.getDate()] += s.totalCredits;
       prevMonthCredits += s.totalCredits;
     }
   }
@@ -169,6 +172,14 @@ export function buildDashboardData(
     monthly.push({ day, cumulative: round(cumulative) });
   }
 
+  // Full previous month, cumulative per day, for comparison.
+  const prevMonthly: DashboardData["prevMonthly"] = [];
+  let prevCumulative = 0;
+  for (let day = 1; day <= daysInPrevMonth; day++) {
+    prevCumulative += prevPerDay[day];
+    prevMonthly.push({ day, cumulative: round(prevCumulative) });
+  }
+
   // --- KPIs --------------------------------------------------------------
   const totalCredits = round(sessions.reduce((s, x) => s + x.totalCredits, 0));
   const percentChange =
@@ -180,11 +191,17 @@ export function buildDashboardData(
     month: "long",
     year: "numeric",
   });
+  const prevMonthLabel = new Date(prevYear, prevMonth, 1).toLocaleString(
+    undefined,
+    { month: "long", year: "numeric" },
+  );
 
   return {
     perSession,
     perLabel,
     monthly,
+    prevMonthly,
+    prevMonthLabel,
     kpis: {
       totalCredits,
       activeLabels: perLabel.allTime.filter((l) => l.name !== "Unassigned")
