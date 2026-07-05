@@ -1,5 +1,5 @@
 import * as vscode from "vscode";
-import { SessionReader } from "../data/SessionReader";
+import { SessionSource } from "../data/SessionSource";
 import { StateManager } from "../state/StateManager";
 import { buildDashboardData } from "../data/DashboardData";
 
@@ -13,7 +13,7 @@ export class DashboardPanel {
 
   static show(
     extensionUri: vscode.Uri,
-    reader: SessionReader,
+    reader: SessionSource,
     state: StateManager
   ): void {
     const column = vscode.window.activeTextEditor?.viewColumn ?? vscode.ViewColumn.One;
@@ -41,7 +41,7 @@ export class DashboardPanel {
   private constructor(
     panel: vscode.WebviewPanel,
     private readonly extensionUri: vscode.Uri,
-    private readonly reader: SessionReader,
+    private readonly reader: SessionSource,
     private readonly state: StateManager
   ) {
     this.panel = panel;
@@ -127,7 +127,7 @@ export class DashboardPanel {
     <div class="kpi"><div class="kpi-value" id="kpi-month">—</div><div class="kpi-label" id="kpi-month-label">This Month</div></div>
     <div class="kpi"><div class="kpi-value" id="kpi-change">—</div><div class="kpi-label">vs Prev Month</div></div>
     <div class="kpi"><div class="kpi-value" id="kpi-labels">—</div><div class="kpi-label">Active Labels</div></div>
-    <div class="kpi"><div class="kpi-value" id="kpi-total">—</div><div class="kpi-label">Total Credits</div></div>
+    <div class="kpi"><div class="kpi-value" id="kpi-total">—</div><div class="kpi-label">Total Cost</div></div>
   </section>
 
   <section class="grid">

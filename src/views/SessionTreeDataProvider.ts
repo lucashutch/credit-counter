@@ -1,7 +1,22 @@
 import * as vscode from "vscode";
-import { SessionCost } from "../data/types";
-import { SessionReader } from "../data/SessionReader";
+import { SessionCost, Source } from "../data/types";
+import { SessionSource } from "../data/SessionSource";
 import { StateManager } from "../state/StateManager";
+
+/** Human-readable name for a session source. */
+export function sourceLabel(source: Source): string {
+  return source === "claude-code" ? "Claude Code" : "Copilot";
+}
+
+/** Formats a US-dollar cost, e.g. `$1.23`. */
+export function formatCost(session: SessionCost): string {
+  return formatUsd(session.totalCredits);
+}
+
+/** Formats a US-dollar amount, e.g. `$1.23`. */
+export function formatUsd(usd: number): string {
+  return `$${usd.toFixed(2)}`;
+}
 
 /**
  * Deterministic hex palette for the workspace-initial letter. A workspace name
@@ -75,12 +90,12 @@ export class SessionTreeItem extends vscode.TreeItem {
     // Colored workspace-initial letter (only the letter is colored).
     this.iconPath = letterIconUri(session.workspaceName ?? session.workspaceHash);
 
-    const credits = session.totalCredits.toFixed(1);
+    const cost = formatCost(session);
     this.description = labelName
-      ? `${credits} cr · ${labelName}`
-      : `${credits} cr`;
+      ? `${cost} · ${labelName}`
+      : cost;
 
-    const fields = SessionTreeItem.buildFields(session, labelName, credits);
+    const fields = SessionTreeItem.buildFields(session, labelName, cost);
     this.metadataText = fields.map(([k, v]) => `${k}: ${v}`).join("\n");
 
     this.tooltip = new vscode.MarkdownString(
@@ -102,17 +117,26 @@ export class SessionTreeItem extends vscode.TreeItem {
   private static buildFields(
     session: SessionCost,
     labelName: string | undefined,
-    credits: string
+    cost: string
   ): [string, string][] {
-    return [
+    const fields: [string, string][] = [
       ["Title", session.firstPrompt],
-      ["Credits", credits],
+      ["Source", sourceLabel(session.source)],
+      ["Cost", cost],
       ["Label", labelName ?? "None"],
       ["Date", new Date(session.timestamp).toLocaleString()],
       ["Workspace", session.workspaceName ?? "Unknown"],
       ["Session", session.sessionId],
       ["Workspace ID", session.workspaceHash],
     ];
+    if (session.tokens) {
+      const t = session.tokens;
+      fields.splice(3, 0, [
+        "Tokens",
+        `${t.input} in · ${t.output} out · ${t.cacheWrite} cache-write · ${t.cacheRead} cache-read`,
+      ]);
+    }
+    return fields;
   }
 
   private static makeLabel(session: SessionCost): string {
@@ -159,12 +183,17 @@ export class SessionTreeDataProvider
    * satisfies both the label filter and the repo filter.
    */
   private repoFilter: Set<string> | undefined;
+  /**
+   * Active source filter. `undefined` means no source constraint. Otherwise a
+   * set of {@link Source} values; combined with the other dimensions via AND.
+   */
+  private sourceFilter: Set<string> | undefined;
 
   static readonly UNASSIGNED = "__unassigned__";
   static readonly UNKNOWN_REPO = "__unknown_repo__";
 
   constructor(
-    private readonly reader: SessionReader,
+    private readonly reader: SessionSource,
     private readonly state: StateManager
   ) {
     // Re-render when label assignments change.
@@ -186,8 +215,8 @@ export class SessionTreeDataProvider
   }
 
   /**
-   * Updates the TreeView description with the credits used in the current
-   * month (e.g. "140.6 credits · June"), shown dimmed beside the view title.
+   * Updates the TreeView description with the cost incurred in the current
+   * month (e.g. "$14.06 · June"), shown dimmed beside the view title.
    */
   private updateSummary(): void {
     if (!this.treeView) {
@@ -196,16 +225,15 @@ export class SessionTreeDataProvider
     const now = new Date();
     const year = now.getFullYear();
     const month = now.getMonth();
-    let monthCredits = 0;
+    let monthCost = 0;
     for (const s of this.sessions) {
       const d = new Date(s.timestamp);
       if (d.getFullYear() === year && d.getMonth() === month) {
-        monthCredits += s.totalCredits;
+        monthCost += s.totalCredits;
       }
     }
-    const credits = Math.round(monthCredits * 10) / 10;
     const monthLabel = now.toLocaleString(undefined, { month: "long" });
-    this.treeView.description = `${credits} credits · ${monthLabel}`;
+    this.treeView.description = `${formatUsd(monthCost)} · ${monthLabel}`;
   }
 
   /** Returns the currently loaded sessions (cached). */
@@ -217,13 +245,33 @@ export class SessionTreeDataProvider
   isFiltered(): boolean {
     return (
       (this.labelFilter !== undefined && this.labelFilter.size > 0) ||
-      (this.repoFilter !== undefined && this.repoFilter.size > 0)
+      (this.repoFilter !== undefined && this.repoFilter.size > 0) ||
+      (this.sourceFilter !== undefined && this.sourceFilter.size > 0)
     );
   }
 
-  /** Returns the active label/repo filter sets, if any. */
-  getFilter(): { labels?: Set<string>; repos?: Set<string> } {
-    return { labels: this.labelFilter, repos: this.repoFilter };
+  /** Returns the active label/repo/source filter sets, if any. */
+  getFilter(): {
+    labels?: Set<string>;
+    repos?: Set<string>;
+    sources?: Set<string>;
+  } {
+    return {
+      labels: this.labelFilter,
+      repos: this.repoFilter,
+      sources: this.sourceFilter,
+    };
+  }
+
+  /** Distinct sources present across loaded sessions, sorted by name. */
+  getSources(): { key: Source; name: string }[] {
+    const seen = new Set<Source>();
+    for (const s of this.sessions) {
+      seen.add(s.source);
+    }
+    return [...seen]
+      .map((key) => ({ key, name: sourceLabel(key) }))
+      .sort((a, b) => a.name.localeCompare(b.name));
   }
 
   /**
@@ -260,12 +308,15 @@ export class SessionTreeDataProvider
    */
   setFilter(
     labelIds: string[] | undefined,
-    repoKeys: string[] | undefined
+    repoKeys: string[] | undefined,
+    sourceKeys?: string[] | undefined
   ): void {
     this.labelFilter =
       labelIds && labelIds.length > 0 ? new Set(labelIds) : undefined;
     this.repoFilter =
       repoKeys && repoKeys.length > 0 ? new Set(repoKeys) : undefined;
+    this.sourceFilter =
+      sourceKeys && sourceKeys.length > 0 ? new Set(sourceKeys) : undefined;
     void vscode.commands.executeCommand(
       "setContext",
       "creditCounter.filterActive",
@@ -276,7 +327,7 @@ export class SessionTreeDataProvider
 
   /** Clears any active filter and shows all sessions. */
   clearFilter(): void {
-    this.setFilter(undefined, undefined);
+    this.setFilter(undefined, undefined, undefined);
   }
 
   getTreeItem(element: SessionTreeItem): vscode.TreeItem {
@@ -321,6 +372,12 @@ export class SessionTreeDataProvider
     // Repo dimension (combined with AND).
     if (this.repoFilter && this.repoFilter.size > 0) {
       if (!this.repoFilter.has(SessionTreeDataProvider.repoKey(session))) {
+        return false;
+      }
+    }
+    // Source dimension (combined with AND).
+    if (this.sourceFilter && this.sourceFilter.size > 0) {
+      if (!this.sourceFilter.has(session.source)) {
         return false;
       }
     }

@@ -6,12 +6,16 @@ import * as readline from "readline";
 import initSqlJs, { Database, SqlJsStatic } from "sql.js";
 import { SessionCost } from "./types";
 import { sumCreditsInLine } from "./CostParser";
+import { SessionSource } from "./SessionSource";
 
 /** `globalState` key under which the parsed-session cache is persisted. */
 const CACHE_KEY = "creditCounter.sessionCache";
 
 /** SQLite `ItemTable` key holding the chat-session index JSON. */
 const SESSION_INDEX_KEY = "chat.ChatSessionStore.index";
+
+/** US-dollar value of one GitHub Copilot AI credit. */
+const CREDIT_USD = 0.01;
 
 /**
  * One session entry as stored in the `chat.ChatSessionStore.index` value of
@@ -58,7 +62,7 @@ interface CacheEnvelope {
  * Reads Copilot chat session logs from VS Code's `workspaceStorage` directory
  * and produces per-session cost summaries.
  */
-export class SessionReader {
+export class SessionReader implements SessionSource {
   /** In-flight `readAllSessions` promise, used to single-flight overlapping calls. */
   private inFlight: Promise<SessionCost[]> | undefined;
 
@@ -417,7 +421,9 @@ export class SessionReader {
       workspaceName,
       firstPrompt: title,
       timestamp,
-      totalCredits: Math.round(totalCredits * 10) / 10,
+      // Stored in USD (1 credit = $0.01) so all sources share one unit.
+      totalCredits: Math.round(totalCredits * CREDIT_USD * 100) / 100,
+      source: "copilot",
     };
   }
 

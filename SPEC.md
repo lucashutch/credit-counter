@@ -51,7 +51,7 @@ _______________________________________________
 
 ### 2.3. Editor Dashboard
 Clicking "Open Dashboard" launches a Webview in a new editor tab. A shared period selector (This month, Last month, Last 3 months, All time) in the toolbar drives the per-label and per-session charts. The dashboard visualizes cost data:
-* **Headline KPIs:** This month's credits, percent change vs. the previous month, active label count, and total credits.
+* **Headline KPIs:** This month's cost (USD), percent change vs. the previous month, active label count, and total cost (USD).
 * **Cost per Session:** A bar chart detailing the credit usage of the most expensive individual chat sessions.
 * **Cost per Label:** A pie chart aggregating total credits by assigned labels.
 * **Total Cost Timeseries:** A line chart displaying daily cumulative credits for the current month (up to the current day), overlaid with the previous month for comparison.
@@ -86,13 +86,26 @@ Clicking "Open Dashboard" launches a Webview in a new editor tab. A shared perio
 ```
 
 ### 2.4. Data Source & Processing
-* **Session Discovery:** The extension enumerates chat sessions from each workspace's `state.vscdb` SQLite store (`workspaceStorage/<hash>/state.vscdb`). The `chat.ChatSessionStore.index` key holds a JSON index of sessions; entries with `isEmpty: true` are excluded. Session titles are always taken from this index, never from the file.
+The extension reads from multiple **sources**, each producing the same `SessionCost` shape (tagged with a `source` field) and merged behind a single `SessionSource` interface (`AggregateReader`). Sessions are tagged by source in the tree and can be filtered by source, alongside label and repository.
+
+All cost is normalized to **US dollars** so the two sources aggregate directly. Copilot credits are converted at $0.01/credit (1 GitHub Copilot AI credit = US$0.01); Claude Code token usage is priced per model. The shared numeric field (`totalCredits`) therefore always holds USD, and both the tree and dashboard display it as `$X.XX`.
+
+**Copilot source (`SessionReader`):**
+* **Session Discovery:** Enumerates chat sessions from each workspace's `state.vscdb` SQLite store (`workspaceStorage/<hash>/state.vscdb`). The `chat.ChatSessionStore.index` key holds a JSON index of sessions; entries with `isEmpty: true` are excluded. Session titles are always taken from this index, never from the file.
 * **Session Parsing:** For each indexed session, the `.jsonl` file is read directly at `chatSessions/<sessionId>.jsonl` (no directory globbing) to tally credits.
-* **Cost Calculation:** * Each `.jsonl` file is parsed line by line.
-    * The extension searches for and extracts the `line["v"]["details"]` field.
-    * Using a regex or string extraction, it parses the credit value from strings formatted like `"Claude Opus 4.8 • 143.6 credits"`.
-    * Total cost is calculated by summing all parsed credit values per session.
-* **Storage:** Label definitions and session-to-label mappings are persisted locally using the VS Code Extension `globalState` or `workspaceState` APIs.
+* **Cost Calculation:** Each `.jsonl` file is parsed line by line; credit values are extracted from strings formatted like `"Claude Opus 4.8 • 143.6 credits"`, summed per session, and converted to USD at $0.01/credit.
+
+**Claude Code source (`ClaudeCodeReader`):**
+* **Session Discovery:** Enumerates transcripts under `~/.claude/projects/<encoded-cwd>/<sessionId>.jsonl` (honoring `CLAUDE_CONFIG_DIR`). Each `.jsonl` file is one session.
+* **Session Parsing:** Each file is streamed line by line. Assistant turns carry `message.usage` token counts (`input_tokens`, `output_tokens`, `cache_creation_input_tokens`, `cache_read_input_tokens`) and a `model`. The session title is the first real user prompt (skipping meta/command/tool-result turns); the repository name is derived from the session's `cwd`.
+* **Cost Calculation:** Claude Code records no cost, so each turn's tokens are priced per model (`ClaudeCodePricing`) to a US-dollar total. Two subtleties are handled to match `claude /cost`:
+    * **Deduplication:** A single assistant response is logged across several lines (one per streamed content block), each repeating the same `message.id` and cumulative `usage`. Each message's usage is counted only once.
+    * **Tiered cache:** Cache-creation tokens are billed by TTL — 5-minute ephemeral cache at 1.25× the input rate, 1-hour cache at 2× — read from the `usage.cache_creation` breakdown (falling back to the flat field as 5-minute).
+  Synthetic turns are not billed; unknown models fall back to Sonnet-tier pricing.
+
+**Caching:** Both sources cache per-file parse results in `globalState` keyed on `mtime`+`size`, invalidated on extension version change.
+
+**Storage:** Label definitions and session-to-label mappings are persisted locally using the VS Code Extension `globalState` API.
 
 ## 3. Technical Architecture
 
@@ -114,6 +127,9 @@ Clicking "Open Dashboard" launches a Webview in a new editor tab. A shared perio
 * **TreeView Providers:**
     * `LabelTreeDataProvider`: Manages the state and UI for the upper label section.
     * `SessionTreeDataProvider`: Manages the state and UI for the lower sessions section.
-* **Chat Session Reader Service:** A utility that reads the `chat.ChatSessionStore.index` from each workspace's `state.vscdb` (via sql.js), filters out empty sessions, then opens each session's `.jsonl` file directly to safely parse the JSON on each line, extract the `v.details` field, and tally the total credits. The display title is sourced from the database index.
+* **Session Sources:** Each cost provider implements the `SessionSource` interface (`readAllSessions(): Promise<SessionCost[]>`):
+    * `SessionReader` — reads the `chat.ChatSessionStore.index` from each workspace's `state.vscdb` (via sql.js), filters out empty sessions, then opens each session's `.jsonl` file directly to tally credits. The display title is sourced from the database index.
+    * `ClaudeCodeReader` — reads Claude Code transcripts from `~/.claude/projects`, pricing per-turn token usage (`ClaudeCodePricing`) to a US-dollar total.
+    * `AggregateReader` — fans out to all sources and merges their sessions (most-recent first), isolating per-source failures.
 * **Webview Panel:** An HTML/JS-based UI for the Dashboard. Uses a charting library (like Chart.js or Recharts) to render the timeseries and cost breakdowns.
 * **State Manager:** Handles saving and retrieving label arrays and the dictionary mapping `sessionId` to `labelId`.

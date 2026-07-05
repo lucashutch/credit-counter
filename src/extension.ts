@@ -3,12 +3,18 @@ import { LabelTreeDataProvider } from "./views/LabelTreeDataProvider";
 import { SessionTreeDataProvider } from "./views/SessionTreeDataProvider";
 import { StateManager } from "./state/StateManager";
 import { SessionReader } from "./data/SessionReader";
+import { ClaudeCodeReader } from "./data/ClaudeCodeReader";
+import { AggregateReader } from "./data/SessionSource";
 import { DashboardPanel } from "./dashboard/DashboardPanel";
 import { registerLabelCommands, registerSessionCommands } from "./commands";
 
 export function activate(context: vscode.ExtensionContext): void {
   const state = new StateManager(context);
-  const reader = new SessionReader(context);
+  // Merge every cost source (Copilot + Claude Code) behind one reader.
+  const reader = new AggregateReader([
+    new SessionReader(context),
+    new ClaudeCodeReader(context),
+  ]);
   const labelProvider = new LabelTreeDataProvider(state);
   const sessionProvider = new SessionTreeDataProvider(reader, state);
 
@@ -64,9 +70,13 @@ async function filterSessions(
 ): Promise<void> {
   const labels = state.getLabels();
   const repos = provider.getRepos();
+  const sources = provider.getSources();
   const active = provider.getFilter();
 
-  type Pick = vscode.QuickPickItem & { id?: string; dimension?: "label" | "repo" };
+  type Pick = vscode.QuickPickItem & {
+    id?: string;
+    dimension?: "label" | "repo" | "source";
+  };
 
   const items: Pick[] = [];
 
@@ -104,9 +114,25 @@ async function filterSessions(
     }
   }
 
+  // --- Sources section ---------------------------------------------------
+  if (sources.length > 1) {
+    items.push({
+      label: "Sources",
+      kind: vscode.QuickPickItemKind.Separator,
+    });
+    for (const s of sources) {
+      items.push({
+        label: s.name,
+        id: s.key,
+        dimension: "source",
+        picked: active.sources?.has(s.key) ?? false,
+      });
+    }
+  }
+
   const picked = await vscode.window.showQuickPick(items, {
-    title: "Filter Sessions by Label and Repository",
-    placeHolder: "Select labels and/or repositories (none = show all)",
+    title: "Filter Sessions by Label, Repository, and Source",
+    placeHolder: "Select labels, repositories, and/or sources (none = show all)",
     canPickMany: true,
   });
 
@@ -121,7 +147,10 @@ async function filterSessions(
   const repoKeys = picked
     .filter((p) => p.dimension === "repo" && p.id)
     .map((p) => p.id as string);
-  provider.setFilter(labelIds, repoKeys);
+  const sourceKeys = picked
+    .filter((p) => p.dimension === "source" && p.id)
+    .map((p) => p.id as string);
+  provider.setFilter(labelIds, repoKeys, sourceKeys);
 }
 
 export function deactivate(): void {

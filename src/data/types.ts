@@ -12,6 +12,21 @@ export interface Label {
   color?: string;
 }
 
+/**
+ * Where a session's cost data originates. Copilot sessions are measured in
+ * Copilot "credits"; Claude Code sessions are measured in US dollars derived
+ * from token usage (see {@link ClaudeCodePricing}).
+ */
+export type Source = "copilot" | "claude-code";
+
+/** Token counts summed across a Claude Code session, used for the tooltip. */
+export interface TokenUsage {
+  input: number;
+  output: number;
+  cacheWrite: number;
+  cacheRead: number;
+}
+
 /** Aggregated cost information for a single chat session (Phase 3+). */
 export interface SessionCost {
   /** Filename without the `.jsonl` extension. */
@@ -24,8 +39,16 @@ export interface SessionCost {
   firstPrompt: string;
   /** Earliest request time in epoch milliseconds. */
   timestamp: number;
-  /** Sum of all parsed credit values in the session. */
+  /**
+   * The session's total cost in **US dollars**. Copilot credits are converted at
+   * $0.01/credit and Claude Code token usage is priced per model, so every
+   * source shares one unit and the tree/dashboard aggregate uniformly.
+   */
   totalCredits: number;
+  /** Which tool produced this session. */
+  source: Source;
+  /** Token usage (Claude Code sessions only). */
+  tokens?: TokenUsage;
   /** Assigned label id, if any. */
   labelId?: string;
 }

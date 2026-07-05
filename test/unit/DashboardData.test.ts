@@ -14,6 +14,7 @@ function session(
     firstPrompt,
     timestamp,
     totalCredits: credits,
+    source: "copilot",
   };
 }
 

@@ -28,7 +28,8 @@ const TOP_SESSIONS = 15;
 const PERIODS: Period[] = ["thisMonth", "lastMonth", "last3Months", "allTime"];
 
 function round(n: number): number {
-  return Math.round(n * 10) / 10;
+  // Cost is in US dollars; round to cents.
+  return Math.round(n * 100) / 100;
 }
 
 /** Inclusive-start, exclusive-end epoch bounds for a period, based on `now`. */

@@ -1,8 +1,8 @@
 {
 	"name": "credit-counter",
 	"displayName": "Credit Counter",
-	"description": "Track, label, and visualize the credit cost of your local Copilot chat sessions.",
-	"version": "0.0.1",
+	"description": "Track, label, and visualize the cost of your local Copilot and Claude Code chat sessions.",
+	"version": "0.0.2",
 	"publisher": "local",
 	"engines": {
 		"vscode": "^1.90.0"
@@ -42,7 +42,7 @@
 			},
 			{
 				"view": "creditCounter.sessions",
-				"contents": "No chat sessions found.\nCost data is read from your local Copilot chat logs.\n[$(refresh) Refresh](command:creditCounter.refreshSessions)\n"
+				"contents": "No chat sessions found.\nCost data is read from your local Copilot and Claude Code chat logs.\n[$(refresh) Refresh](command:creditCounter.refreshSessions)\n"
 			}
 		],
 		"commands": [

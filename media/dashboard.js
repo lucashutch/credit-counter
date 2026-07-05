@@ -43,6 +43,13 @@
     return Number(n).toLocaleString(undefined, { maximumFractionDigits: 1 });
   }
 
+  function usd(n) {
+    return "$" + Number(n).toLocaleString(undefined, {
+      minimumFractionDigits: 2,
+      maximumFractionDigits: 2,
+    });
+  }
+
   function render(data) {
     lastData = data;
     const hasData =
@@ -52,9 +59,9 @@
     document.getElementById("empty").classList.toggle("hidden", hasData);
 
     // KPIs
-    document.getElementById("kpi-total").textContent = fmt(data.kpis.totalCredits);
+    document.getElementById("kpi-total").textContent = usd(data.kpis.totalCredits);
     document.getElementById("kpi-labels").textContent = data.kpis.activeLabels;
-    document.getElementById("kpi-month").textContent = fmt(data.kpis.monthCredits);
+    document.getElementById("kpi-month").textContent = usd(data.kpis.monthCredits);
     document.getElementById("kpi-month-label").textContent = data.monthLabel;
     const change = data.kpis.percentChange;
     const changeEl = document.getElementById("kpi-change");
@@ -97,7 +104,14 @@
       options: {
         responsive: true,
         maintainAspectRatio: false,
-        plugins: { legend: { position: "right" } },
+        plugins: {
+          legend: { position: "right" },
+          tooltip: {
+            callbacks: {
+              label: (c) => `${c.label}: ${usd(c.parsed)}`,
+            },
+          },
+        },
       },
     });
   }
@@ -111,7 +125,7 @@
         labels: perSession.map((s) => s.label),
         datasets: [
           {
-            label: "Credits",
+            label: "Cost (USD)",
             data: perSession.map((s) => s.credits),
             backgroundColor: perSession.map((s) => s.color),
           },
@@ -121,8 +135,20 @@
         indexAxis: "y",
         responsive: true,
         maintainAspectRatio: false,
-        plugins: { legend: { display: false } },
-        scales: { x: { beginAtZero: true } },
+        plugins: {
+          legend: { display: false },
+          tooltip: {
+            callbacks: {
+              label: (c) => usd(c.parsed.x),
+            },
+          },
+        },
+        scales: {
+          x: {
+            beginAtZero: true,
+            ticks: { callback: (v) => usd(v) },
+          },
+        },
       },
     });
   }
@@ -178,10 +204,17 @@
       options: {
         responsive: true,
         maintainAspectRatio: false,
-        plugins: { legend: { display: true } },
+        plugins: {
+          legend: { display: true },
+          tooltip: {
+            callbacks: {
+              label: (c) => `${c.dataset.label}: ${usd(c.parsed.y)}`,
+            },
+          },
+        },
         scales: {
           x: { title: { display: true, text: "Day of month" } },
-          y: { beginAtZero: true },
+          y: { beginAtZero: true, ticks: { callback: (v) => usd(v) } },
         },
       },
     });
