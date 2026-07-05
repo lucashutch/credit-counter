@@ -14,14 +14,16 @@ The sidebar is divided into distinct sections:
 * **Global Actions (Top):**
     * **"Open Dashboard" Button:** A prominent button at the very top of the sidebar. Clicking this opens the main Dashboard in a new editor tab.
 * **Label Management (Upper Section):**
-    * A list of user-defined labels (e.g., "Project A", "Debugging", "Refactoring").
-    * **Add Label:** An input field or `+` button to create a new label.
-    * **Rename Label:** Inline editing or a context menu option to rename existing labels.
-    * **Delete Label:** A trash icon or context menu option to remove a label.
+    * A list of user-defined labels (e.g., "Project A", "Debugging", "Refactoring"), sorted alphabetically.
+    * **Add Label:** A `+` button to create a new label.
+    * **Rename Label:** An inline action to rename existing labels.
+    * **Delete Label:** An inline trash action to remove a label.
 * **Chat Sessions (Lower Section):**
     * A chronological list of all detected chat sessions.
-    * Displays brief session metadata (e.g., date, time, snippet of first prompt, current label).
-    * **Context Menu (Right-Click):** Right-clicking on a session opens a menu to "Assign Label". This expands to a sub-menu of available labels defined in the Label Management section.
+    * Displays brief session metadata (e.g., date, time, snippet of first prompt, current label, and originating workspace).
+    * **Filter:** A filter action in the view title narrows the list, with a matching action to clear the active filter.
+    * **Refresh:** A refresh action in the view title re-reads the chat logs.
+    * **Context Menu (Right-Click):** Right-clicking on a session opens a menu to "Assign Label" (expanding to the available labels) and to "Copy Metadata".
 
 **Wireframe: Sidebar Layout**
 ```text
@@ -35,7 +37,7 @@ _______________________________________________
 |   • Research                         [✎][x] |
 |_____________________________________________|
 |                                             |
-| ▼ CHAT SESSIONS                             |
+| ▼ CHAT SESSIONS              [filter][↻] |
 |   • 10:45 AM | "Fix regex pattern..."       |
 |     [Label: Debugging]                      |
 |                                             |
@@ -48,20 +50,21 @@ _______________________________________________
 ```
 
 ### 2.3. Editor Dashboard
-Clicking "Open Dashboard" launches a Webview in a new editor tab. The dashboard visualizes cost data:
-* **Cost per Session:** A table or bar chart detailing the credit usage of individual chat sessions.
-* **Cost per Label:** A pie chart or bar chart aggregating total credits by assigned labels.
-* **Total Cost Timeseries:** A line chart displaying daily cumulative credits for the current month.
+Clicking "Open Dashboard" launches a Webview in a new editor tab. A shared period selector (This month, Last month, Last 3 months, All time) in the toolbar drives the per-label and per-session charts. The dashboard visualizes cost data:
+* **Headline KPIs:** This month's credits, percent change vs. the previous month, active label count, and total credits.
+* **Cost per Session:** A bar chart detailing the credit usage of the most expensive individual chat sessions.
+* **Cost per Label:** A pie chart aggregating total credits by assigned labels.
+* **Total Cost Timeseries:** A line chart displaying daily cumulative credits for the current month (up to the current day), overlaid with the previous month for comparison.
 
 **Wireframe: Dashboard Tab**
 
 ```text
 +-------------------------------------------------------------+
-|  CHAT COST ANALYTICS                            [ Refresh ] |
+|  CHAT COST ANALYTICS               [ Period v ] [ Refresh ] |
 +-------------------------------------------------------------+
 |                                                             |
-|  [ TOTAL CREDITS ]      [ ACTIVE LABELS ]    [ % vs PREV ]  |
-|      1,452.8                 12                 +8.5%       |
+| [ THIS MONTH ] [ % vs PREV ] [ ACTIVE LABELS ] [ TOTAL ]    |
+|     452.8         +8.5%            12            1,452.8     |
 |                                                             |
 +------------------------------+------------------------------+
 | COST PER LABEL (Pie)         | COST PER SESSION (Bar)       |
@@ -71,7 +74,7 @@ Clicking "Open Dashboard" launches a Webview in a new editor tab. The dashboard 
 |          (  ) Other: 30%     |  Session C: |||||||||| 210   |
 |                              |                              |
 +------------------------------+------------------------------+
-| TOTAL COST TIMESERIES (Current Month)                       |
+| TOTAL COST TIMESERIES (This Month vs Last Month)            |
 |                                                             |
 |  Credits                                                    |
 |    ^          _..---''                                      |
@@ -97,12 +100,15 @@ Clicking "Open Dashboard" launches a Webview in a new editor tab. The dashboard 
 * `viewsContainers`: Defines the activity bar icon and container.
 * `views`: Defines the tree views for Label Management and Chat Sessions.
 * `commands`: Registers commands for:
-    * `extension.openDashboard`
-    * `extension.addLabel`
-    * `extension.renameLabel`
-    * `extension.deleteLabel`
-    * `extension.assignLabel`
-* `menus`: Registers the context menu on tree view items (`view/item/context`).
+    * `openDashboard`
+    * `addLabel`
+    * `renameLabel`
+    * `deleteLabel`
+    * `assignLabel`
+    * `copyMetadata`
+    * `refreshSessions`
+    * `filterSessions` / `clearFilter`
+* `menus`: Registers view-title actions (open dashboard, add label, filter/refresh sessions) and the context menu on tree view items (`view/item/context`).
 
 ### 3.2. Key Components
 * **TreeView Providers:**
