@@ -117,10 +117,3 @@ Clicking "Open Dashboard" launches a Webview in a new editor tab. A shared perio
 * **Chat Session Reader Service:** A utility that reads the `chat.ChatSessionStore.index` from each workspace's `state.vscdb` (via sql.js), filters out empty sessions, then opens each session's `.jsonl` file directly to safely parse the JSON on each line, extract the `v.details` field, and tally the total credits. The display title is sourced from the database index.
 * **Webview Panel:** An HTML/JS-based UI for the Dashboard. Uses a charting library (like Chart.js or Recharts) to render the timeseries and cost breakdowns.
 * **State Manager:** Handles saving and retrieving label arrays and the dictionary mapping `sessionId` to `labelId`.
-
-## 4. Development Milestones
-1.  **Scaffolding & UI Structure:** Setup VS Code extension template, register Activity Bar icon, and mock the Sidebar TreeViews.
-2.  **State Management:** Implement Create/Read/Update/Delete (CRUD) operations for labels and the right-click assignment logic for sessions.
-3.  **Data Ingestion:** Implement the reader service to locate the `workspaceStorage` directory, parse `.jsonl` session files, isolate `line["v"]["details"]`, and accurately sum the numeric credit values.
-4.  **Dashboard Implementation:** Create the Webview, integrate a charting library, and wire up the parsed `.jsonl` data to the charts.
-5.  **Testing & Polish:** Ensure correct state persistence, accurate credit aggregations across diverse model strings, and a responsive Webview UI.
