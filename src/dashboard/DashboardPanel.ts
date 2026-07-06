@@ -124,10 +124,10 @@ export class DashboardPanel {
   </header>
 
   <section class="kpis">
-    <div class="kpi"><div class="kpi-value" id="kpi-month">—</div><div class="kpi-label" id="kpi-month-label">This Month</div></div>
-    <div class="kpi"><div class="kpi-value" id="kpi-change">—</div><div class="kpi-label">vs Prev Month</div></div>
+    <div class="kpi"><div class="kpi-value" id="kpi-cost">—</div><div class="kpi-label" id="kpi-cost-label">Cost</div></div>
+    <div class="kpi"><div class="kpi-value" id="kpi-change">—</div><div class="kpi-label" id="kpi-change-label">vs Previous</div></div>
     <div class="kpi"><div class="kpi-value" id="kpi-labels">—</div><div class="kpi-label">Active Labels</div></div>
-    <div class="kpi"><div class="kpi-value" id="kpi-total">—</div><div class="kpi-label">Total Cost</div></div>
+    <div class="kpi"><div class="kpi-value" id="kpi-avg">—</div><div class="kpi-label">Avg / Session</div></div>
   </section>
 
   <section class="grid">
@@ -148,6 +148,65 @@ export class DashboardPanel {
   <section class="card full">
     <h2 id="timeseries-title">Total Cost Timeseries</h2>
     <div class="chart-wrap tall"><canvas id="monthChart"></canvas></div>
+  </section>
+
+  <section class="grid">
+    <div class="card">
+      <div class="card-head"><h2>Cost per Harness</h2></div>
+      <div class="chart-wrap"><canvas id="harnessChart"></canvas></div>
+    </div>
+    <div class="card">
+      <div class="card-head"><h2>Cost per Model</h2></div>
+      <div class="chart-wrap"><canvas id="modelChart"></canvas></div>
+    </div>
+  </section>
+
+  <section class="grid grid-3">
+    <div class="card">
+      <div class="card-head"><h2>Cost per Repo (Top 10)</h2></div>
+      <div class="chart-wrap"><canvas id="repoChart"></canvas></div>
+    </div>
+    <div class="card">
+      <div class="card-head"><h2>Token Usage &amp; Efficiency</h2></div>
+      <div id="tokenStats" class="token-stats"></div>
+    </div>
+    <div class="card">
+      <div class="card-head"><h2>Spend by Time of Week</h2></div>
+      <div class="heatmap-wrap"><div id="heatmap" class="heatmap"></div></div>
+    </div>
+  </section>
+
+  <section class="grid">
+    <div class="card">
+      <div class="card-head"><h2>Avg Cost / Session by Harness</h2></div>
+      <div class="chart-wrap"><canvas id="avgCostHarnessChart"></canvas></div>
+    </div>
+    <div class="card">
+      <div class="card-head"><h2>Avg Cost / Session by Model</h2></div>
+      <div class="chart-wrap"><canvas id="avgCostModelChart"></canvas></div>
+    </div>
+  </section>
+
+  <section class="grid">
+    <div class="card">
+      <div class="card-head"><h2>Sessions by Model</h2></div>
+      <div class="chart-wrap"><canvas id="sessionsModelChart"></canvas></div>
+    </div>
+    <div class="card">
+      <div class="card-head"><h2>Avg Tokens / Session by Model</h2></div>
+      <div class="chart-wrap"><canvas id="avgTokensModelChart"></canvas></div>
+    </div>
+  </section>
+
+  <section class="grid">
+    <div class="card">
+      <div class="card-head"><h2>Avg Subagents / Session by Model</h2></div>
+      <div class="chart-wrap"><canvas id="avgSubagentsModelChart"></canvas></div>
+    </div>
+    <div class="card">
+      <div class="card-head"><h2>Sessions by Label</h2></div>
+      <div class="chart-wrap"><canvas id="sessionsLabelChart"></canvas></div>
+    </div>
   </section>
 
   <div id="empty" class="empty hidden">No cost data found yet.</div>
