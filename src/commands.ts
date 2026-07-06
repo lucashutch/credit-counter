@@ -25,22 +25,52 @@ export function registerLabelCommands(
   ];
 }
 
+/** Resolves the session item to act on: the one passed by the context menu,
+ * or the tree's current selection when invoked via keyboard/command palette. */
+type ItemResolver = (item?: SessionTreeItem) => SessionTreeItem | undefined;
+
 /**
- * Registers the session-related commands (label assignment, copy metadata).
+ * Registers the session-related commands (label assignment, copy metadata,
+ * hide/unhide). Commands invoked without an explicit item (keyboard shortcut or
+ * command palette) fall back to the tree's current selection via `resolve`.
  */
 export function registerSessionCommands(
-  state: StateManager
+  state: StateManager,
+  resolve: ItemResolver
 ): vscode.Disposable[] {
   return [
     vscode.commands.registerCommand(
       "creditCounter.assignLabel",
-      (item?: SessionTreeItem) => assignLabel(state, item)
+      (item?: SessionTreeItem) => assignLabel(state, resolve(item))
     ),
     vscode.commands.registerCommand(
       "creditCounter.copyMetadata",
-      (item?: SessionTreeItem) => copyMetadata(item)
+      (item?: SessionTreeItem) => copyMetadata(resolve(item))
+    ),
+    vscode.commands.registerCommand(
+      "creditCounter.hideSession",
+      (item?: SessionTreeItem) => setHidden(state, resolve(item), true)
+    ),
+    vscode.commands.registerCommand(
+      "creditCounter.unhideSession",
+      (item?: SessionTreeItem) => setHidden(state, resolve(item), false)
     ),
   ];
+}
+
+/** Hides or unhides the session backing a tree item. */
+async function setHidden(
+  state: StateManager,
+  item: SessionTreeItem | undefined,
+  hidden: boolean
+): Promise<void> {
+  if (!item?.session) {
+    vscode.window.showInformationMessage(
+      `Right-click a chat session to ${hidden ? "hide" : "unhide"} it.`
+    );
+    return;
+  }
+  await state.setHidden(item.session.sessionId, hidden);
 }
 
 async function copyMetadata(item?: SessionTreeItem): Promise<void> {

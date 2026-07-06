@@ -16,7 +16,13 @@ The extension reads your **local Copilot chat logs and Claude Code transcripts**
 
 ### Label assignment
 - **Right-click any session → Assign Label** to categorize it (or clear the label).
+- **Keyboard:** with the Chat Sessions view focused, press **`l`** to assign a label to the selected session (and **`h`** to hide it) — fully keyboard-driven, no mouse needed.
 - Deleting a label automatically removes it from all sessions.
+
+### Organizing the session list
+- **Filter** (view-title funnel) by any combination of **label**, **repository**, and **source** (Copilot / Claude Code).
+- **Filter by Date** (view-title calendar) using presets (last 7/30 days, this/last month, this year) or a custom start/end range.
+- **Hide sessions** you don't care about via right-click; toggle **Show Hidden Sessions** in the view title to reveal and unhide them. Hidden sessions persist across reloads.
 
 ### Dashboard
 Opens in an editor tab with:
@@ -87,6 +93,10 @@ npm test         # runs the unit suite (Mocha + ts-node)
 | `Credit Counter: Rename Label` | Rename an existing label |
 | `Credit Counter: Delete Label` | Delete a label (and its assignments) |
 | `Credit Counter: Assign Label` | Assign a label to a session (right-click) |
+| `Credit Counter: Filter Sessions` | Filter by label, repository, and/or source |
+| `Credit Counter: Filter by Date` | Filter sessions to a date range |
+| `Credit Counter: Hide Session` | Hide a session from the list (right-click) |
+| `Credit Counter: Show Hidden Sessions` | Reveal hidden sessions to unhide them |
 | `Credit Counter: Refresh Sessions` | Re-read the chat logs |
 
 ## Privacy

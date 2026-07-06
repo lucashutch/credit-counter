@@ -98,6 +98,48 @@
 				"title": "Clear Filter",
 				"category": "Credit Counter",
 				"icon": "$(filter-filled)"
+			},
+			{
+				"command": "creditCounter.filterByDate",
+				"title": "Filter by Date",
+				"category": "Credit Counter",
+				"icon": "$(calendar)"
+			},
+			{
+				"command": "creditCounter.hideSession",
+				"title": "Hide Session",
+				"category": "Credit Counter",
+				"icon": "$(eye-closed)"
+			},
+			{
+				"command": "creditCounter.unhideSession",
+				"title": "Unhide Session",
+				"category": "Credit Counter",
+				"icon": "$(eye)"
+			},
+			{
+				"command": "creditCounter.showHidden",
+				"title": "Show Hidden Sessions",
+				"category": "Credit Counter",
+				"icon": "$(eye)"
+			},
+			{
+				"command": "creditCounter.hideHidden",
+				"title": "Hide Hidden Sessions",
+				"category": "Credit Counter",
+				"icon": "$(eye-closed)"
+			}
+		],
+		"keybindings": [
+			{
+				"command": "creditCounter.assignLabel",
+				"key": "l",
+				"when": "focusedView == creditCounter.sessions"
+			},
+			{
+				"command": "creditCounter.hideSession",
+				"key": "h",
+				"when": "focusedView == creditCounter.sessions"
 			}
 		],
 		"menus": {
@@ -118,14 +160,29 @@
 					"group": "navigation@1"
 				},
 				{
+					"command": "creditCounter.filterByDate",
+					"when": "view == creditCounter.sessions",
+					"group": "navigation@2"
+				},
+				{
 					"command": "creditCounter.clearFilter",
 					"when": "view == creditCounter.sessions && creditCounter.filterActive",
-					"group": "navigation@2"
+					"group": "navigation@3"
+				},
+				{
+					"command": "creditCounter.showHidden",
+					"when": "view == creditCounter.sessions && !creditCounter.showHidden",
+					"group": "navigation@4"
+				},
+				{
+					"command": "creditCounter.hideHidden",
+					"when": "view == creditCounter.sessions && creditCounter.showHidden",
+					"group": "navigation@4"
 				},
 				{
 					"command": "creditCounter.refreshSessions",
 					"when": "view == creditCounter.sessions",
-					"group": "navigation@3"
+					"group": "navigation@5"
 				}
 			],
 			"view/item/context": [
@@ -141,12 +198,22 @@
 				},
 				{
 					"command": "creditCounter.assignLabel",
-					"when": "view == creditCounter.sessions && viewItem == session",
+					"when": "view == creditCounter.sessions && (viewItem == session || viewItem == sessionHidden)",
 					"group": "1_assign"
 				},
 				{
-					"command": "creditCounter.copyMetadata",
+					"command": "creditCounter.hideSession",
 					"when": "view == creditCounter.sessions && viewItem == session",
+					"group": "2_visibility"
+				},
+				{
+					"command": "creditCounter.unhideSession",
+					"when": "view == creditCounter.sessions && viewItem == sessionHidden",
+					"group": "2_visibility"
+				},
+				{
+					"command": "creditCounter.copyMetadata",
+					"when": "view == creditCounter.sessions && (viewItem == session || viewItem == sessionHidden)",
 					"group": "9_copy"
 				}
 			]
