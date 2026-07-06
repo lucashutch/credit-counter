@@ -2,7 +2,7 @@
 	"name": "credit-counter",
 	"displayName": "Credit Counter",
 	"description": "Track, label, and visualize the cost of your local Copilot and Claude Code chat sessions.",
-	"version": "0.0.2",
+	"version": "0.0.3",
 	"publisher": "local",
 	"engines": {
 		"vscode": "^1.90.0"
@@ -42,7 +42,7 @@
 			},
 			{
 				"view": "creditCounter.sessions",
-				"contents": "No chat sessions found.\nCost data is read from your local Copilot and Claude Code chat logs.\n[$(refresh) Refresh](command:creditCounter.refreshSessions)\n"
+				"contents": "No chat sessions found.\nCost data is read from your local Copilot, Claude Code, and OpenCode chat logs.\n[$(refresh) Refresh](command:creditCounter.refreshSessions)\n"
 			}
 		],
 		"commands": [
@@ -217,6 +217,19 @@
 					"group": "9_copy"
 				}
 			]
+		},
+		"configuration": {
+			"title": "Credit Counter",
+			"properties": {
+				"creditCounter.opencode.dataRoots": {
+					"type": "array",
+					"items": {
+						"type": "string"
+					},
+					"default": [],
+					"markdownDescription": "Additional OpenCode data directories to scan for `opencode.db`, on top of the auto-discovered default location (`$XDG_DATA_HOME/opencode` or `~/.local/share/opencode`).\n\nList one entry per profile — for example, if you run OpenCode with different `XDG_DATA_HOME` values, add each of those paths here (`~/.config/opencode/xdg-work`, `~/.config/opencode/xdg-home`). Each entry may point at either the `XDG_DATA_HOME` directory or directly at the folder containing `opencode.db`. A leading `~` is expanded to your home directory. Leave empty to use only the default location."
+				}
+			}
 		}
 	},
 	"scripts": {

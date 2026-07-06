@@ -17,7 +17,7 @@ export interface Label {
  * Copilot "credits"; Claude Code sessions are measured in US dollars derived
  * from token usage (see {@link ClaudeCodePricing}).
  */
-export type Source = "copilot" | "claude-code";
+export type Source = "copilot" | "claude-code" | "opencode";
 
 /** Token counts summed across a Claude Code session, used for the tooltip. */
 export interface TokenUsage {

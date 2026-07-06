@@ -5,7 +5,14 @@ import { StateManager } from "../state/StateManager";
 
 /** Human-readable name for a session source. */
 export function sourceLabel(source: Source): string {
-  return source === "claude-code" ? "Claude Code" : "Copilot";
+  switch (source) {
+    case "claude-code":
+      return "Claude Code";
+    case "opencode":
+      return "OpenCode";
+    default:
+      return "Copilot";
+  }
 }
 
 /** Formats a US-dollar cost, e.g. `$1.23`. */
