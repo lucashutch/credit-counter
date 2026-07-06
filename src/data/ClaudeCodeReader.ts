@@ -179,6 +179,10 @@ export class ClaudeCodeReader implements SessionSource {
     let costUsd = 0;
     let timestamp = 0;
     let title = "";
+    // Claude Code's own generated session title (shown in `claude --resume`),
+    // logged as `{"type":"ai-title","aiTitle":"…"}` and rewritten as it is
+    // regenerated — the last one wins. Preferred over the first user prompt.
+    let aiTitle = "";
     let cwd: string | undefined;
     // A single assistant response is logged across multiple lines (one per
     // streamed content block), each repeating the same `message.id` and the
@@ -245,7 +249,15 @@ export class ClaudeCodeReader implements SessionSource {
           }
         }
 
-        // Title: first real user prompt (skip meta/command/tool-result turns).
+        // Title: prefer Claude Code's generated title; keep the latest one.
+        if (parsed.type === "ai-title" && typeof parsed.aiTitle === "string") {
+          const t = parsed.aiTitle.trim().replace(/\s+/g, " ");
+          if (t) {
+            aiTitle = t;
+          }
+        }
+
+        // Fallback title: first real user prompt (skip meta/command turns).
         if (!title && parsed.type === "user" && parsed.isMeta !== true && message) {
           const text = this.userText(message.content);
           if (text) {
@@ -274,7 +286,7 @@ export class ClaudeCodeReader implements SessionSource {
       sessionId,
       workspaceHash: projectDir,
       workspaceName: this.workspaceNameFromCwd(cwd),
-      firstPrompt: title || sessionId.slice(0, 8),
+      firstPrompt: aiTitle || title || sessionId.slice(0, 8),
       timestamp,
       totalCredits: Math.round(costUsd * 100) / 100,
       source: "claude-code",
