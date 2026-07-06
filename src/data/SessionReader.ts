@@ -5,7 +5,7 @@ import * as os from "os";
 import * as readline from "readline";
 import initSqlJs, { Database, SqlJsStatic } from "sql.js";
 import { SessionCost } from "./types";
-import { sumCreditsInLine } from "./CostParser";
+import { sumCreditsInLine, addCreditsByModelInLine } from "./CostParser";
 import { SessionSource } from "./SessionSource";
 
 /** `globalState` key under which the parsed-session cache is persisted. */
@@ -16,6 +16,21 @@ const SESSION_INDEX_KEY = "chat.ChatSessionStore.index";
 
 /** US-dollar value of one GitHub Copilot AI credit. */
 const CREDIT_USD = 0.01;
+
+/** Converts a raw per-model credit map to USD, rounded to cents. */
+function toUsdByModel(
+  credits: Record<string, number>
+): Record<string, number> | undefined {
+  const entries = Object.entries(credits);
+  if (entries.length === 0) {
+    return undefined;
+  }
+  const out: Record<string, number> = {};
+  for (const [model, value] of entries) {
+    out[model] = Math.round(value * CREDIT_USD * 100) / 100;
+  }
+  return out;
+}
 
 /**
  * One session entry as stored in the `chat.ChatSessionStore.index` value of
@@ -367,6 +382,8 @@ export class SessionReader implements SessionSource {
     const sessionId = path.basename(filePath, ".jsonl");
     let totalCredits = 0;
     let timestamp = 0;
+    // Per-model credit tallies (raw Copilot credits, converted to USD below).
+    const creditsByModel: Record<string, number> = {};
 
     try {
       const stream = fs.createReadStream(filePath, { encoding: "utf8" });
@@ -378,6 +395,7 @@ export class SessionReader implements SessionSource {
         }
         // Credits: scan the raw line (resilient to schema differences).
         totalCredits += sumCreditsInLine(line);
+        addCreditsByModelInLine(line, creditsByModel);
 
         // Metadata: parse the line and pull the earliest timestamp from requests.
         let parsed: unknown;
@@ -424,6 +442,7 @@ export class SessionReader implements SessionSource {
       // Stored in USD (1 credit = $0.01) so all sources share one unit.
       totalCredits: Math.round(totalCredits * CREDIT_USD * 100) / 100,
       source: "copilot",
+      costByModel: toUsdByModel(creditsByModel),
     };
   }
 

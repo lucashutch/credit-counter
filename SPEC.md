@@ -21,7 +21,7 @@ The sidebar is divided into distinct sections:
 * **Chat Sessions (Lower Section):**
     * A chronological list of all detected chat sessions.
     * Displays brief session metadata (e.g., date, time, snippet of first prompt, current label, and originating workspace).
-    * **Filter:** A filter action in the view title narrows the list by any combination of **label**, **repository**, and **source** (Copilot / Claude Code), combined with AND. A separate **Filter by Date** action constrains the list to a date range (presets — last 7/30 days, this/last month, this year — or a custom start/end). A matching action clears all active filters.
+    * **Filter:** A filter action in the view title narrows the list by any combination of **label**, **repository**, and **source** (Copilot / Claude Code / OpenCode), combined with AND. A separate **Filter by Date** action constrains the list to a date range (presets — last 7/30 days, this/last month, this year — or a custom start/end). A matching action clears all active filters.
     * **Hidden sessions:** Sessions can be hidden from the list via the right-click menu. A view-title toggle (**Show/Hide Hidden Sessions**) reveals hidden sessions — shown with a muted eye-off icon and a "hidden" tag — so they can be unhidden. The hidden set is persisted in `globalState`.
     * **Refresh:** A refresh action in the view title re-reads the chat logs.
     * **Context Menu (Right-Click):** Right-clicking on a session opens a menu to **Assign Label** (a QuickPick of the available labels, with the current one marked), **Hide/Unhide Session**, and **Copy Metadata**.
@@ -90,7 +90,7 @@ Clicking "Open Dashboard" launches a Webview in a new editor tab. A shared perio
 ### 2.4. Data Source & Processing
 The extension reads from multiple **sources**, each producing the same `SessionCost` shape (tagged with a `source` field) and merged behind a single `SessionSource` interface (`AggregateReader`). Sessions are tagged by source in the tree and can be filtered by source, alongside label and repository.
 
-All cost is normalized to **US dollars** so the two sources aggregate directly. Copilot credits are converted at $0.01/credit (1 GitHub Copilot AI credit = US$0.01); Claude Code token usage is priced per model. The shared numeric field (`totalCredits`) therefore always holds USD, and both the tree and dashboard display it as `$X.XX`.
+All cost is normalized to **US dollars** so the sources aggregate directly. Copilot credits are converted at $0.01/credit (1 GitHub Copilot AI credit = US$0.01); Claude Code token usage is priced per model; OpenCode records its own USD cost per session. The shared numeric field (`totalCredits`) therefore always holds USD, and both the tree and dashboard display it as `$X.XX`.
 
 **Copilot source (`SessionReader`):**
 * **Session Discovery:** Enumerates chat sessions from each workspace's `state.vscdb` SQLite store (`workspaceStorage/<hash>/state.vscdb`). The `chat.ChatSessionStore.index` key holds a JSON index of sessions; entries with `isEmpty: true` are excluded. Session titles are always taken from this index, never from the file.
@@ -105,7 +105,12 @@ All cost is normalized to **US dollars** so the two sources aggregate directly. 
     * **Tiered cache:** Cache-creation tokens are billed by TTL — 5-minute ephemeral cache at 1.25× the input rate, 1-hour cache at 2× — read from the `usage.cache_creation` breakdown (falling back to the flat field as 5-minute).
   Synthetic turns are not billed; unknown models fall back to Sonnet-tier pricing.
 
-**Caching:** Both sources cache per-file parse results in `globalState` keyed on `mtime`+`size`, invalidated on extension version change.
+**OpenCode source (`OpenCodeReader`):**
+* **Session Discovery:** Reads OpenCode's SQLite store (`opencode.db`). The default location (`$XDG_DATA_HOME/opencode`, falling back to `~/.local/share/opencode`) is always scanned; additional data roots can be listed via the `creditCounter.opencode.dataRoots` setting (supporting users who run multiple profiles with distinct `XDG_DATA_HOME` values). Each entry may point at the `XDG_DATA_HOME` directory or directly at the folder containing `opencode.db`, and a leading `~` is expanded. Duplicate database paths are collapsed; sessions are not de-duplicated across databases.
+* **Session Parsing:** The `session` table carries per-session aggregates directly — `cost`, `tokens_input`/`tokens_output`/`tokens_cache_write`/`tokens_cache_read`, `title`, `directory`, `time_created`, and `parent_id`. The repository name is derived from `directory`; the display title comes from `title`.
+* **Cost Calculation:** Cost is read from OpenCode's own `cost` column (no per-model pricing needed). **Subagents run as child sessions** (`parent_id` set) with their own cost, and the parent row does *not* roll them up. The reader folds each session's cost and tokens into its **top-level ancestor** (walking the `parent_id` chain, guarding against orphans/cycles) and lists only root sessions, so subagent cost is attributed to the conversation that spawned it without double-counting. Sessions whose rolled-up cost is $0 (free/subscription models report no cost) are omitted, matching the other sources.
+
+**Caching:** All sources cache parse results in `globalState` keyed on `mtime`+`size` (per `.jsonl` file for Copilot/Claude Code, per `opencode.db` for OpenCode), invalidated on extension version change. The OpenCode data-root setting is watched, triggering a refresh when it changes.
 
 **Storage:** Label definitions and session-to-label mappings are persisted locally using the VS Code Extension `globalState` API.
 
@@ -124,6 +129,7 @@ All cost is normalized to **US dollars** so the two sources aggregate directly. 
     * `refreshSessions`
     * `filterSessions` / `clearFilter`
 * `menus`: Registers view-title actions (open dashboard, add label, filter/refresh sessions) and the context menu on tree view items (`view/item/context`).
+* `configuration`: `creditCounter.opencode.dataRoots` — an array of additional OpenCode data directories to scan for `opencode.db`, on top of the auto-discovered default location.
 
 ### 3.2. Key Components
 * **TreeView Providers:**
@@ -132,6 +138,7 @@ All cost is normalized to **US dollars** so the two sources aggregate directly. 
 * **Session Sources:** Each cost provider implements the `SessionSource` interface (`readAllSessions(): Promise<SessionCost[]>`):
     * `SessionReader` — reads the `chat.ChatSessionStore.index` from each workspace's `state.vscdb` (via sql.js), filters out empty sessions, then opens each session's `.jsonl` file directly to tally credits. The display title is sourced from the database index.
     * `ClaudeCodeReader` — reads Claude Code transcripts from `~/.claude/projects`, pricing per-turn token usage (`ClaudeCodePricing`) to a US-dollar total.
+    * `OpenCodeReader` — reads the `session` table from each `opencode.db` (via sql.js), rolling subagent (child) sessions up into their top-level parent and using OpenCode's own per-session `cost`.
     * `AggregateReader` — fans out to all sources and merges their sessions (most-recent first), isolating per-source failures.
 * **Webview Panel:** An HTML/JS-based UI for the Dashboard. Uses a charting library (like Chart.js or Recharts) to render the timeseries and cost breakdowns.
 * **State Manager:** Handles saving and retrieving label arrays and the dictionary mapping `sessionId` to `labelId`.

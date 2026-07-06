@@ -4,16 +4,18 @@ import { SessionTreeDataProvider } from "./views/SessionTreeDataProvider";
 import { StateManager } from "./state/StateManager";
 import { SessionReader } from "./data/SessionReader";
 import { ClaudeCodeReader } from "./data/ClaudeCodeReader";
+import { OpenCodeReader } from "./data/OpenCodeReader";
 import { AggregateReader } from "./data/SessionSource";
 import { DashboardPanel } from "./dashboard/DashboardPanel";
 import { registerLabelCommands, registerSessionCommands } from "./commands";
 
 export function activate(context: vscode.ExtensionContext): void {
   const state = new StateManager(context);
-  // Merge every cost source (Copilot + Claude Code) behind one reader.
+  // Merge every cost source (Copilot + Claude Code + OpenCode) behind one reader.
   const reader = new AggregateReader([
     new SessionReader(context),
     new ClaudeCodeReader(context),
+    new OpenCodeReader(context),
   ]);
   const labelProvider = new LabelTreeDataProvider(state);
   const sessionProvider = new SessionTreeDataProvider(reader, state);
@@ -44,6 +46,15 @@ export function activate(context: vscode.ExtensionContext): void {
   );
 
   // Dashboard (Phase 5).
+  // Re-scan when the OpenCode data-root list changes.
+  context.subscriptions.push(
+    vscode.workspace.onDidChangeConfiguration((e) => {
+      if (e.affectsConfiguration("creditCounter.opencode.dataRoots")) {
+        sessionProvider.refresh();
+      }
+    })
+  );
+
   context.subscriptions.push(
     vscode.commands.registerCommand("creditCounter.openDashboard", () =>
       DashboardPanel.show(context.extensionUri, reader, state)

@@ -6,9 +6,25 @@ import * as readline from "readline";
 import { SessionCost, TokenUsage } from "./types";
 import { SessionSource } from "./SessionSource";
 import { costForUsage, PricedUsage } from "./ClaudeCodePricing";
+import { friendlyModelName } from "./ModelNames";
 
 /** `globalState` key under which the parsed Claude Code cache is persisted. */
 const CACHE_KEY = "creditCounter.claudeCodeCache";
+
+/** Rounds each value of a per-model USD map to cents; undefined when empty. */
+function roundCents(
+  byModel: Record<string, number>
+): Record<string, number> | undefined {
+  const entries = Object.entries(byModel);
+  if (entries.length === 0) {
+    return undefined;
+  }
+  const out: Record<string, number> = {};
+  for (const [k, v] of entries) {
+    out[k] = Math.round(v * 100) / 100;
+  }
+  return out;
+}
 
 /**
  * One cached file's parse result, keyed by absolute file path. `mtimeMs` and
@@ -176,7 +192,10 @@ export class ClaudeCodeReader implements SessionSource {
   ): Promise<SessionCost | undefined> {
     const sessionId = path.basename(filePath, ".jsonl");
     const tokens: TokenUsage = { input: 0, output: 0, cacheWrite: 0, cacheRead: 0 };
+    const costByModel: Record<string, number> = {};
     let costUsd = 0;
+    // Subagents are launched via the `Task` tool; count its invocations.
+    let subagentCount = 0;
     let timestamp = 0;
     let title = "";
     // Claude Code's own generated session title (shown in `claude --resume`),
@@ -188,6 +207,9 @@ export class ClaudeCodeReader implements SessionSource {
     // streamed content block), each repeating the same `message.id` and the
     // same cumulative `usage`. Count each message's usage only once.
     const seenMessageIds = new Set<string>();
+    // `Task` tool_use block ids already counted, to avoid double-counting a
+    // block that recurs across streamed lines.
+    const seenTaskIds = new Set<string>();
 
     try {
       const stream = fs.createReadStream(filePath, { encoding: "utf8" });
@@ -245,7 +267,30 @@ export class ClaudeCodeReader implements SessionSource {
             tokens.output += priced.output;
             tokens.cacheWrite += cache5m + cache1h;
             tokens.cacheRead += priced.cacheRead;
-            costUsd += costForUsage(message.model as string | undefined, priced);
+            const model = message.model as string | undefined;
+            const turnCost = costForUsage(model, priced);
+            costUsd += turnCost;
+            if (turnCost > 0) {
+              const name = friendlyModelName(model);
+              costByModel[name] = (costByModel[name] ?? 0) + turnCost;
+            }
+          }
+          // Count `Task` tool_use blocks (each spawns a subagent), deduped by
+          // the block id since a block can recur across streamed lines.
+          const content = message.content;
+          if (Array.isArray(content)) {
+            for (const block of content) {
+              const b = block as Record<string, unknown>;
+              if (b && b.type === "tool_use" && b.name === "Task") {
+                const id = typeof b.id === "string" ? b.id : "";
+                if (!id || !seenTaskIds.has(id)) {
+                  if (id) {
+                    seenTaskIds.add(id);
+                  }
+                  subagentCount += 1;
+                }
+              }
+            }
           }
         }
 
@@ -291,6 +336,8 @@ export class ClaudeCodeReader implements SessionSource {
       totalCredits: Math.round(costUsd * 100) / 100,
       source: "claude-code",
       tokens,
+      costByModel: roundCents(costByModel),
+      subagentCount,
     };
   }
 
