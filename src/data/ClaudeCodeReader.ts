@@ -7,6 +7,7 @@ import { SessionCost, TokenUsage } from "./types";
 import { SessionSource } from "./SessionSource";
 import { costForUsage, PricedUsage } from "./ClaudeCodePricing";
 import { friendlyModelName } from "./ModelNames";
+import { ModelsDevPricing, RateMap } from "./ModelsDevPricing";
 
 /** `globalState` key under which the parsed Claude Code cache is persisted. */
 const CACHE_KEY = "creditCounter.claudeCodeCache";
@@ -34,6 +35,12 @@ function roundCents(
 interface CacheEntry {
   mtimeMs: number;
   size: number;
+  /**
+   * Freshness stamp of the models.dev pricing used to cost this file. When the
+   * pricing refreshes, this changes and the file is re-parsed so costs re-price
+   * against the new rates.
+   */
+  pricingStamp: number;
   session: SessionCost | null;
 }
 
@@ -63,8 +70,14 @@ interface RawUsage {
  */
 export class ClaudeCodeReader implements SessionSource {
   private inFlight: Promise<SessionCost[]> | undefined;
+  private readonly pricing: ModelsDevPricing;
 
-  constructor(private readonly context: vscode.ExtensionContext) {}
+  constructor(
+    private readonly context: vscode.ExtensionContext,
+    pricing?: ModelsDevPricing
+  ) {
+    this.pricing = pricing ?? new ModelsDevPricing(context);
+  }
 
   private get version(): string {
     return (this.context.extension?.packageJSON?.version as string) ?? "0.0.0";
@@ -118,6 +131,10 @@ export class ClaudeCodeReader implements SessionSource {
       return [];
     }
 
+    // Rates used to price token usage; empty (→ $0) when models.dev is
+    // unavailable and nothing has been fetched yet.
+    const { rates, stamp: pricingStamp } = await this.pricing.getRates();
+
     const cache = this.loadCache();
     const nextCache: Record<string, CacheEntry> = {};
     const sessions: SessionCost[] = [];
@@ -146,7 +163,12 @@ export class ClaudeCodeReader implements SessionSource {
         }
 
         const hit = cache[filePath];
-        if (hit && hit.mtimeMs === stat.mtimeMs && hit.size === stat.size) {
+        if (
+          hit &&
+          hit.mtimeMs === stat.mtimeMs &&
+          hit.size === stat.size &&
+          hit.pricingStamp === pricingStamp
+        ) {
           nextCache[filePath] = hit;
           if (hit.session) {
             sessions.push(hit.session);
@@ -154,10 +176,11 @@ export class ClaudeCodeReader implements SessionSource {
           continue;
         }
 
-        const session = await this.readSessionFile(filePath, projectDir);
+        const session = await this.readSessionFile(filePath, projectDir, rates);
         nextCache[filePath] = {
           mtimeMs: stat.mtimeMs,
           size: stat.size,
+          pricingStamp,
           session: session ?? null,
         };
         dirty = true;
@@ -188,7 +211,8 @@ export class ClaudeCodeReader implements SessionSource {
   /** Streams one transcript, pricing token usage and extracting metadata. */
   private async readSessionFile(
     filePath: string,
-    projectDir: string
+    projectDir: string,
+    rates: RateMap
   ): Promise<SessionCost | undefined> {
     const sessionId = path.basename(filePath, ".jsonl");
     const tokens: TokenUsage = { input: 0, output: 0, cacheWrite: 0, cacheRead: 0 };
@@ -268,7 +292,7 @@ export class ClaudeCodeReader implements SessionSource {
             tokens.cacheWrite += cache5m + cache1h;
             tokens.cacheRead += priced.cacheRead;
             const model = message.model as string | undefined;
-            const turnCost = costForUsage(model, priced);
+            const turnCost = costForUsage(model, priced, rates);
             costUsd += turnCost;
             if (turnCost > 0) {
               const name = friendlyModelName(model);

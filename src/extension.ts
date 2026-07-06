@@ -5,17 +5,21 @@ import { StateManager } from "./state/StateManager";
 import { SessionReader } from "./data/SessionReader";
 import { ClaudeCodeReader } from "./data/ClaudeCodeReader";
 import { OpenCodeReader } from "./data/OpenCodeReader";
+import { ModelsDevPricing } from "./data/ModelsDevPricing";
 import { AggregateReader } from "./data/SessionSource";
 import { DashboardPanel } from "./dashboard/DashboardPanel";
 import { registerLabelCommands, registerSessionCommands } from "./commands";
 
 export function activate(context: vscode.ExtensionContext): void {
   const state = new StateManager(context);
+  // Shared models.dev pricing (fetched once, cached) prices Claude Code token
+  // usage and estimates OpenCode subscription sessions.
+  const pricing = new ModelsDevPricing(context);
   // Merge every cost source (Copilot + Claude Code + OpenCode) behind one reader.
   const reader = new AggregateReader([
     new SessionReader(context),
-    new ClaudeCodeReader(context),
-    new OpenCodeReader(context),
+    new ClaudeCodeReader(context, pricing),
+    new OpenCodeReader(context, pricing),
   ]);
   const labelProvider = new LabelTreeDataProvider(state);
   const sessionProvider = new SessionTreeDataProvider(reader, state);
