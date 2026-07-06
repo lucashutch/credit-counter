@@ -2,7 +2,7 @@
 	"name": "credit-counter",
 	"displayName": "Credit Counter",
 	"description": "Track, label, and visualize the cost of your local Copilot and Claude Code chat sessions.",
-	"version": "0.0.3",
+	"version": "0.0.5",
 	"publisher": "local",
 	"engines": {
 		"vscode": "^1.90.0"

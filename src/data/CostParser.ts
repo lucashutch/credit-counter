@@ -1,4 +1,5 @@
 import { CostEntry } from "./types";
+import { friendlyModelName } from "./ModelNames";
 
 /**
  * Matches credit values inside a quoted `details` string, e.g.:
@@ -52,4 +53,26 @@ export function sumCreditsInLine(rawLine: string): number {
     }
   }
   return total;
+}
+
+/**
+ * Accumulates credit values in a single raw JSONL line into `out`, keyed by
+ * (normalized) model name. Mirrors {@link sumCreditsInLine} but preserves the
+ * per-model attribution captured in each `details` string.
+ */
+export function addCreditsByModelInLine(
+  rawLine: string,
+  out: Record<string, number>
+): void {
+  let match: RegExpExecArray | null;
+  CREDITS_RE.lastIndex = 0;
+  while ((match = CREDITS_RE.exec(rawLine)) !== null) {
+    const value = parseFloat(match[2]);
+    if (!Number.isFinite(value)) {
+      continue;
+    }
+    const rawModel = /^[0-9.]+$/.test(match[1].trim()) ? "" : match[1].trim();
+    const model = friendlyModelName(rawModel || "Unknown");
+    out[model] = (out[model] ?? 0) + value;
+  }
 }

@@ -5,6 +5,7 @@ import * as os from "os";
 import initSqlJs, { Database, SqlJsStatic } from "sql.js";
 import { SessionCost, TokenUsage } from "./types";
 import { SessionSource } from "./SessionSource";
+import { friendlyModelName } from "./ModelNames";
 
 /** `globalState` key under which the parsed OpenCode cache is persisted. */
 const CACHE_KEY = "creditCounter.openCodeCache";
@@ -47,6 +48,10 @@ interface RolledSession {
   root: RawSession;
   cost: number;
   tokens: TokenUsage;
+  /** Cost attributed to each model across this session and its descendants. */
+  costByModel: Record<string, number>;
+  /** Number of descendant (subagent) sessions folded into this root. */
+  subagentCount: number;
 }
 
 /**
@@ -279,6 +284,11 @@ export class OpenCodeReader implements SessionSource {
         });
       }
 
+      // Per-model cost lives on individual assistant messages (the `session`
+      // row's aggregate `model` is often null), so read it from the `message`
+      // table keyed by session id.
+      const modelCostBySession = this.readModelCosts(db);
+
       // Fold every session's cost and tokens into its top-level ancestor
       // (subagents can themselves spawn subagents), keyed by the root's id.
       const rolled = new Map<string, RolledSession>();
@@ -290,18 +300,36 @@ export class OpenCodeReader implements SessionSource {
             root,
             cost: 0,
             tokens: { input: 0, output: 0, cacheWrite: 0, cacheRead: 0 },
+            costByModel: {},
+            subagentCount: 0,
           };
           rolled.set(root.id, agg);
+        }
+        if (s.id !== root.id) {
+          agg.subagentCount += 1;
         }
         agg.cost += s.cost;
         agg.tokens.input += s.tokens.input;
         agg.tokens.output += s.tokens.output;
         agg.tokens.cacheWrite += s.tokens.cacheWrite;
         agg.tokens.cacheRead += s.tokens.cacheRead;
+        // Attribute this (sub)session's message-level costs to the root.
+        const perModel = modelCostBySession.get(s.id);
+        if (perModel) {
+          for (const [name, c] of perModel) {
+            agg.costByModel[name] = (agg.costByModel[name] ?? 0) + c;
+          }
+        }
       }
 
       const sessions: SessionCost[] = [];
-      for (const { root, cost, tokens } of rolled.values()) {
+      for (const {
+        root,
+        cost,
+        tokens,
+        costByModel,
+        subagentCount,
+      } of rolled.values()) {
         // Only surface sessions that actually cost something, matching the
         // behaviour of the other readers (free/subscription models report $0).
         if (cost <= 0) {
@@ -323,6 +351,10 @@ export class OpenCodeReader implements SessionSource {
           totalCredits: Math.round(cost * 100) / 100,
           source: "opencode",
           tokens,
+          // Scale message-derived per-model costs so they sum to the session's
+          // authoritative rolled cost (message costs can drift slightly).
+          costByModel: this.scaleByModel(costByModel, cost),
+          subagentCount,
         });
       }
       return sessions;
@@ -352,6 +384,75 @@ export class OpenCodeReader implements SessionSource {
       current = parent;
     }
     return current;
+  }
+
+  /**
+   * Reads per-model cost from the `message` table, grouped by session. Each
+   * assistant message stores its `modelID` and `cost` inside the `data` JSON
+   * blob, so we use `json_extract` to sum cost per (session, model). Returns an
+   * empty map if the table/columns are missing or the query fails.
+   */
+  private readModelCosts(db: Database): Map<string, Map<string, number>> {
+    const bySession = new Map<string, Map<string, number>>();
+    try {
+      const result = db.exec(
+        `SELECT session_id,
+                json_extract(data, '$.modelID') AS model,
+                SUM(json_extract(data, '$.cost')) AS cost
+           FROM message
+          WHERE json_extract(data, '$.role') = 'assistant'
+            AND json_extract(data, '$.cost') > 0
+          GROUP BY session_id, model`
+      );
+      const rows = result[0]?.values;
+      if (!rows) {
+        return bySession;
+      }
+      for (const row of rows) {
+        const sessionId = typeof row[0] === "string" ? row[0] : "";
+        if (!sessionId) {
+          continue;
+        }
+        const name = friendlyModelName(
+          typeof row[1] === "string" ? row[1] : undefined
+        );
+        const cost = this.num(row[2]);
+        if (cost <= 0) {
+          continue;
+        }
+        let models = bySession.get(sessionId);
+        if (!models) {
+          models = new Map<string, number>();
+          bySession.set(sessionId, models);
+        }
+        models.set(name, (models.get(name) ?? 0) + cost);
+      }
+    } catch {
+      // Missing `message` table or no json1 support — no model breakdown.
+    }
+    return bySession;
+  }
+
+  /**
+   * Scales a per-model cost map so its values sum to `target` USD and rounds to
+   * cents. Returns undefined when there is no per-model data (the dashboard then
+   * buckets the session's cost under its harness name).
+   */
+  private scaleByModel(
+    byModel: Record<string, number>,
+    target: number
+  ): Record<string, number> | undefined {
+    const entries = Object.entries(byModel);
+    if (entries.length === 0) {
+      return undefined;
+    }
+    const sum = entries.reduce((acc, [, v]) => acc + v, 0);
+    const factor = sum > 0 ? target / sum : 0;
+    const out: Record<string, number> = {};
+    for (const [k, v] of entries) {
+      out[k] = Math.round(v * factor * 100) / 100;
+    }
+    return out;
   }
 
   private num(value: unknown): number {

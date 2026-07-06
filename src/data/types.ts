@@ -49,6 +49,19 @@ export interface SessionCost {
   source: Source;
   /** Token usage (Claude Code sessions only). */
   tokens?: TokenUsage;
+  /**
+   * Cost in **US dollars** broken down by (friendly) model name. A single
+   * session can span several models, so this maps each model to the portion of
+   * `totalCredits` it accounts for. Copilot, Claude Code and OpenCode all
+   * populate this; the values sum to `totalCredits`.
+   */
+  costByModel?: Record<string, number>;
+  /**
+   * Number of subagents used in the session (OpenCode child sessions, or Claude
+   * Code `Task` invocations). Their cost and tokens are already folded into this
+   * session's totals. Absent/0 when the source has no subagent concept.
+   */
+  subagentCount?: number;
   /** Assigned label id, if any. */
   labelId?: string;
 }
