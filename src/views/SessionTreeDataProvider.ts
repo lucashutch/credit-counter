@@ -81,19 +81,23 @@ export class SessionTreeItem extends vscode.TreeItem {
 
   constructor(
     public readonly session: SessionCost,
-    public readonly labelName: string | undefined
+    public readonly labelName: string | undefined,
+    public readonly hidden: boolean = false
   ) {
     super(SessionTreeItem.makeLabel(session), vscode.TreeItemCollapsibleState.None);
     this.id = session.sessionId;
-    this.contextValue = "session";
+    // Context value drives which context-menu items appear (Hide vs Unhide).
+    this.contextValue = hidden ? "sessionHidden" : "session";
 
-    // Colored workspace-initial letter (only the letter is colored).
-    this.iconPath = letterIconUri(session.workspaceName ?? session.workspaceHash);
+    // Colored workspace-initial letter (only the letter is colored). Hidden
+    // sessions use a muted eye-off icon instead.
+    this.iconPath = hidden
+      ? new vscode.ThemeIcon("eye-closed")
+      : letterIconUri(session.workspaceName ?? session.workspaceHash);
 
     const cost = formatCost(session);
-    this.description = labelName
-      ? `${cost} · ${labelName}`
-      : cost;
+    const suffix = hidden ? " · hidden" : "";
+    this.description = (labelName ? `${cost} · ${labelName}` : cost) + suffix;
 
     const fields = SessionTreeItem.buildFields(session, labelName, cost);
     this.metadataText = fields.map(([k, v]) => `${k}: ${v}`).join("\n");
@@ -188,6 +192,17 @@ export class SessionTreeDataProvider
    * set of {@link Source} values; combined with the other dimensions via AND.
    */
   private sourceFilter: Set<string> | undefined;
+  /**
+   * Active date-range filter (inclusive-start, inclusive-end epoch ms). Either
+   * bound may be undefined (open-ended). Combined with the other dimensions via
+   * AND.
+   */
+  private dateStart: number | undefined;
+  private dateEnd: number | undefined;
+  /** Human-readable label for the active date range, e.g. "Last 7 days". */
+  private dateLabel: string | undefined;
+  /** Whether hidden sessions are currently shown (marked) in the list. */
+  private showHidden = false;
 
   static readonly UNASSIGNED = "__unassigned__";
   static readonly UNKNOWN_REPO = "__unknown_repo__";
@@ -241,26 +256,63 @@ export class SessionTreeDataProvider
     return this.sessions;
   }
 
-  /** Whether any filter (label and/or repo) is currently active. */
+  /** Whether any filter (label, repo, source, or date range) is active. */
   isFiltered(): boolean {
     return (
       (this.labelFilter !== undefined && this.labelFilter.size > 0) ||
       (this.repoFilter !== undefined && this.repoFilter.size > 0) ||
-      (this.sourceFilter !== undefined && this.sourceFilter.size > 0)
+      (this.sourceFilter !== undefined && this.sourceFilter.size > 0) ||
+      this.dateStart !== undefined ||
+      this.dateEnd !== undefined
     );
   }
 
-  /** Returns the active label/repo/source filter sets, if any. */
+  /** Returns the active label/repo/source filter sets and date range, if any. */
   getFilter(): {
     labels?: Set<string>;
     repos?: Set<string>;
     sources?: Set<string>;
+    dateLabel?: string;
   } {
     return {
       labels: this.labelFilter,
       repos: this.repoFilter,
       sources: this.sourceFilter,
+      dateLabel: this.dateLabel,
     };
+  }
+
+  /** Applies (or clears, when both bounds are undefined) a date-range filter. */
+  setDateRange(
+    start: number | undefined,
+    end: number | undefined,
+    label?: string
+  ): void {
+    this.dateStart = start;
+    this.dateEnd = end;
+    this.dateLabel = start === undefined && end === undefined ? undefined : label;
+    void vscode.commands.executeCommand(
+      "setContext",
+      "creditCounter.filterActive",
+      this.isFiltered()
+    );
+    this._onDidChangeTreeData.fire();
+  }
+
+  /** Whether hidden sessions are currently being shown. */
+  isShowingHidden(): boolean {
+    return this.showHidden;
+  }
+
+  /** Shows or hides the hidden sessions in the list. */
+  setShowHidden(show: boolean): void {
+    this.showHidden = show;
+    void vscode.commands.executeCommand(
+      "setContext",
+      "creditCounter.showHidden",
+      show
+    );
+    this._onDidChangeTreeData.fire();
   }
 
   /** Distinct sources present across loaded sessions, sorted by name. */
@@ -325,8 +377,11 @@ export class SessionTreeDataProvider
     this._onDidChangeTreeData.fire();
   }
 
-  /** Clears any active filter and shows all sessions. */
+  /** Clears every active filter (labels, repos, sources, and date range). */
   clearFilter(): void {
+    this.dateStart = undefined;
+    this.dateEnd = undefined;
+    this.dateLabel = undefined;
     this.setFilter(undefined, undefined, undefined);
   }
 
@@ -346,13 +401,20 @@ export class SessionTreeDataProvider
     }
     const labels = this.state.getLabels();
     const assignments = this.state.getAssignments();
+    const hidden = this.state.getHiddenSessions();
 
     return this.sessions
-      .filter((s) => this.matchesFilter(s, assignments))
+      .filter((s) => {
+        // Drop hidden sessions unless the user is showing them.
+        if (hidden.has(s.sessionId) && !this.showHidden) {
+          return false;
+        }
+        return this.matchesFilter(s, assignments);
+      })
       .map((s) => {
         const labelId = assignments[s.sessionId];
         const labelName = labels.find((l) => l.id === labelId)?.name;
-        return new SessionTreeItem(s, labelName);
+        return new SessionTreeItem(s, labelName, hidden.has(s.sessionId));
       });
   }
 
@@ -380,6 +442,13 @@ export class SessionTreeDataProvider
       if (!this.sourceFilter.has(session.source)) {
         return false;
       }
+    }
+    // Date-range dimension (combined with AND).
+    if (this.dateStart !== undefined && session.timestamp < this.dateStart) {
+      return false;
+    }
+    if (this.dateEnd !== undefined && session.timestamp > this.dateEnd) {
+      return false;
     }
     return true;
   }

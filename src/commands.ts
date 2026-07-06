@@ -40,7 +40,30 @@ export function registerSessionCommands(
       "creditCounter.copyMetadata",
       (item?: SessionTreeItem) => copyMetadata(item)
     ),
+    vscode.commands.registerCommand(
+      "creditCounter.hideSession",
+      (item?: SessionTreeItem) => setHidden(state, item, true)
+    ),
+    vscode.commands.registerCommand(
+      "creditCounter.unhideSession",
+      (item?: SessionTreeItem) => setHidden(state, item, false)
+    ),
   ];
+}
+
+/** Hides or unhides the session backing a tree item. */
+async function setHidden(
+  state: StateManager,
+  item: SessionTreeItem | undefined,
+  hidden: boolean
+): Promise<void> {
+  if (!item?.session) {
+    vscode.window.showInformationMessage(
+      `Right-click a chat session to ${hidden ? "hide" : "unhide"} it.`
+    );
+    return;
+  }
+  await state.setHidden(item.session.sessionId, hidden);
 }
 
 async function copyMetadata(item?: SessionTreeItem): Promise<void> {

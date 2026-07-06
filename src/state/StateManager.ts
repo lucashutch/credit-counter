@@ -4,6 +4,7 @@ import { Label } from "../data/types";
 
 const LABELS_KEY = "creditCounter.labels";
 const ASSIGNMENTS_KEY = "creditCounter.assignments";
+const HIDDEN_KEY = "creditCounter.hidden";
 
 /** Map of sessionId -> labelId. */
 type AssignmentMap = Record<string, string>;
@@ -101,6 +102,29 @@ export class StateManager {
       delete assignments[sessionId];
     }
     await this.context.globalState.update(ASSIGNMENTS_KEY, assignments);
+    this._onDidChange.fire();
+  }
+
+  // --- Hidden sessions ----------------------------------------------------
+
+  /** The set of session ids the user has hidden from the sessions list. */
+  getHiddenSessions(): Set<string> {
+    return new Set(this.context.globalState.get<string[]>(HIDDEN_KEY, []));
+  }
+
+  isHidden(sessionId: string): boolean {
+    return this.getHiddenSessions().has(sessionId);
+  }
+
+  /** Hides or unhides a session. */
+  async setHidden(sessionId: string, hidden: boolean): Promise<void> {
+    const set = this.getHiddenSessions();
+    if (hidden) {
+      set.add(sessionId);
+    } else {
+      set.delete(sessionId);
+    }
+    await this.context.globalState.update(HIDDEN_KEY, [...set]);
     this._onDidChange.fire();
   }
 

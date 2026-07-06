@@ -21,9 +21,10 @@ The sidebar is divided into distinct sections:
 * **Chat Sessions (Lower Section):**
     * A chronological list of all detected chat sessions.
     * Displays brief session metadata (e.g., date, time, snippet of first prompt, current label, and originating workspace).
-    * **Filter:** A filter action in the view title narrows the list, with a matching action to clear the active filter.
+    * **Filter:** A filter action in the view title narrows the list by any combination of **label**, **repository**, and **source** (Copilot / Claude Code), combined with AND. A separate **Filter by Date** action constrains the list to a date range (presets — last 7/30 days, this/last month, this year — or a custom start/end). A matching action clears all active filters.
+    * **Hidden sessions:** Sessions can be hidden from the list via the right-click menu. A view-title toggle (**Show/Hide Hidden Sessions**) reveals hidden sessions — shown with a muted eye-off icon and a "hidden" tag — so they can be unhidden. The hidden set is persisted in `globalState`.
     * **Refresh:** A refresh action in the view title re-reads the chat logs.
-    * **Context Menu (Right-Click):** Right-clicking on a session opens a menu to "Assign Label" (expanding to the available labels) and to "Copy Metadata".
+    * **Context Menu (Right-Click):** Right-clicking on a session opens a menu to **Assign Label** (a QuickPick of the available labels, with the current one marked), **Hide/Unhide Session**, and **Copy Metadata**.
 
 **Wireframe: Sidebar Layout**
 ```text

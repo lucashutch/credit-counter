@@ -54,8 +54,143 @@ export function activate(context: vscode.ExtensionContext): void {
     vscode.commands.registerCommand(
       "creditCounter.clearFilter",
       () => sessionProvider.clearFilter()
+    ),
+    vscode.commands.registerCommand(
+      "creditCounter.filterByDate",
+      () => filterByDate(sessionProvider)
+    ),
+    vscode.commands.registerCommand(
+      "creditCounter.showHidden",
+      () => sessionProvider.setShowHidden(true)
+    ),
+    vscode.commands.registerCommand(
+      "creditCounter.hideHidden",
+      () => sessionProvider.setShowHidden(false)
     )
   );
+}
+
+/**
+ * Prompts for a date range (presets or a custom range) and applies it as a
+ * filter. Choosing "All time" clears the date filter.
+ */
+async function filterByDate(provider: SessionTreeDataProvider): Promise<void> {
+  type RangePick = vscode.QuickPickItem & { kind?: never; make?: () => void };
+  const now = new Date();
+  const startOfDay = (d: Date) =>
+    new Date(d.getFullYear(), d.getMonth(), d.getDate()).getTime();
+  const daysAgo = (n: number) => startOfDay(new Date(Date.now() - n * 86400000));
+
+  const picks: RangePick[] = [
+    {
+      label: "$(clock) All time",
+      description: "Clear the date filter",
+      make: () => provider.setDateRange(undefined, undefined),
+    },
+    {
+      label: "$(calendar) Last 7 days",
+      make: () => provider.setDateRange(daysAgo(6), undefined, "Last 7 days"),
+    },
+    {
+      label: "$(calendar) Last 30 days",
+      make: () => provider.setDateRange(daysAgo(29), undefined, "Last 30 days"),
+    },
+    {
+      label: "$(calendar) This month",
+      make: () =>
+        provider.setDateRange(
+          new Date(now.getFullYear(), now.getMonth(), 1).getTime(),
+          undefined,
+          "This month"
+        ),
+    },
+    {
+      label: "$(calendar) Last month",
+      make: () =>
+        provider.setDateRange(
+          new Date(now.getFullYear(), now.getMonth() - 1, 1).getTime(),
+          new Date(now.getFullYear(), now.getMonth(), 1).getTime() - 1,
+          "Last month"
+        ),
+    },
+    {
+      label: "$(calendar) This year",
+      make: () =>
+        provider.setDateRange(
+          new Date(now.getFullYear(), 0, 1).getTime(),
+          undefined,
+          "This year"
+        ),
+    },
+    {
+      label: "$(edit) Custom range…",
+      description: "Enter start and end dates",
+    },
+  ];
+
+  const choice = await vscode.window.showQuickPick(picks, {
+    title: "Filter Sessions by Date",
+    placeHolder: "Select a date range",
+  });
+  if (!choice) {
+    return;
+  }
+  if (choice.make) {
+    choice.make();
+    return;
+  }
+  await promptCustomRange(provider);
+}
+
+/** Prompts for explicit start/end dates (YYYY-MM-DD) and applies the range. */
+async function promptCustomRange(
+  provider: SessionTreeDataProvider
+): Promise<void> {
+  const parse = (value: string): number | undefined => {
+    const trimmed = value.trim();
+    if (!trimmed) {
+      return undefined;
+    }
+    const ms = Date.parse(trimmed);
+    return Number.isNaN(ms) ? undefined : ms;
+  };
+  const validate = (value: string): string | null =>
+    !value.trim() || parse(value) !== undefined
+      ? null
+      : "Use a date like 2026-06-01 (or leave blank).";
+
+  const startStr = await vscode.window.showInputBox({
+    title: "Custom Date Range — Start",
+    prompt: "Start date (YYYY-MM-DD), or blank for no lower bound",
+    placeHolder: "2026-06-01",
+    validateInput: validate,
+  });
+  if (startStr === undefined) {
+    return;
+  }
+  const endStr = await vscode.window.showInputBox({
+    title: "Custom Date Range — End",
+    prompt: "End date (YYYY-MM-DD, inclusive), or blank for no upper bound",
+    placeHolder: "2026-06-30",
+    validateInput: validate,
+  });
+  if (endStr === undefined) {
+    return;
+  }
+
+  const start = parse(startStr);
+  // Make the end bound inclusive of the whole day.
+  let end = parse(endStr);
+  if (end !== undefined) {
+    end += 86400000 - 1;
+  }
+  if (start === undefined && end === undefined) {
+    provider.setDateRange(undefined, undefined);
+    return;
+  }
+  const fmt = (ms?: number) =>
+    ms === undefined ? "…" : new Date(ms).toLocaleDateString();
+  provider.setDateRange(start, end, `${fmt(start)} – ${fmt(end)}`);
 }
 
 /**
