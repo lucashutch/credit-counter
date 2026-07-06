@@ -2,6 +2,7 @@ import * as vscode from "vscode";
 import { SessionCost, Source } from "../data/types";
 import { SessionSource } from "../data/SessionSource";
 import { StateManager } from "../state/StateManager";
+import { MIN_SESSION_COST } from "../data/DashboardData";
 
 /** Human-readable name for a session source. */
 export function sourceLabel(source: Source): string {
@@ -239,10 +240,20 @@ export class SessionTreeDataProvider
 
   /** Forces a re-read of the log files. */
   async refresh(): Promise<void> {
-    this.sessions = await this.reader.readAllSessions();
-    this.loaded = true;
+    await this.load();
     this.updateSummary();
     this._onDidChangeTreeData.fire();
+  }
+
+  /**
+   * Reads all sessions and drops trivially-cheap ones (below
+   * {@link MIN_SESSION_COST}) — aborted or quick test prompts — so they never
+   * appear in the list or the monthly summary, matching the dashboard.
+   */
+  private async load(): Promise<void> {
+    const all = await this.reader.readAllSessions();
+    this.sessions = all.filter((s) => s.totalCredits >= MIN_SESSION_COST);
+    this.loaded = true;
   }
 
   /**
@@ -407,8 +418,7 @@ export class SessionTreeDataProvider
 
   async getChildren(): Promise<SessionTreeItem[]> {
     if (!this.loaded) {
-      this.sessions = await this.reader.readAllSessions();
-      this.loaded = true;
+      await this.load();
       this.updateSummary();
     }
     // When empty, return nothing so the view's welcome content is shown.
