@@ -130,6 +130,18 @@
 				"icon": "$(eye-closed)"
 			}
 		],
+		"keybindings": [
+			{
+				"command": "creditCounter.assignLabel",
+				"key": "l",
+				"when": "focusedView == creditCounter.sessions"
+			},
+			{
+				"command": "creditCounter.hideSession",
+				"key": "h",
+				"when": "focusedView == creditCounter.sessions"
+			}
+		],
 		"menus": {
 			"view/title": [
 				{

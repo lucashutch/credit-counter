@@ -36,7 +36,12 @@ export function activate(context: vscode.ExtensionContext): void {
   context.subscriptions.push(...registerLabelCommands(state));
 
   // Session label assignment (Phase 4).
-  context.subscriptions.push(...registerSessionCommands(state));
+  context.subscriptions.push(
+    ...registerSessionCommands(
+      state,
+      (item) => item ?? sessionProvider.getSelectedItem()
+    )
+  );
 
   // Dashboard (Phase 5).
   context.subscriptions.push(

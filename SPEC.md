@@ -25,6 +25,7 @@ The sidebar is divided into distinct sections:
     * **Hidden sessions:** Sessions can be hidden from the list via the right-click menu. A view-title toggle (**Show/Hide Hidden Sessions**) reveals hidden sessions — shown with a muted eye-off icon and a "hidden" tag — so they can be unhidden. The hidden set is persisted in `globalState`.
     * **Refresh:** A refresh action in the view title re-reads the chat logs.
     * **Context Menu (Right-Click):** Right-clicking on a session opens a menu to **Assign Label** (a QuickPick of the available labels, with the current one marked), **Hide/Unhide Session**, and **Copy Metadata**.
+    * **Keyboard:** when the Chat Sessions view is focused, `l` assigns a label to the selected session and `h` hides it. These commands resolve their target from the context-menu item when present, otherwise from the tree's current selection, so they work identically from mouse, keyboard, and command palette.
 
 **Wireframe: Sidebar Layout**
 ```text

@@ -16,6 +16,7 @@ The extension reads your **local Copilot chat logs and Claude Code transcripts**
 
 ### Label assignment
 - **Right-click any session → Assign Label** to categorize it (or clear the label).
+- **Keyboard:** with the Chat Sessions view focused, press **`l`** to assign a label to the selected session (and **`h`** to hide it) — fully keyboard-driven, no mouse needed.
 - Deleting a label automatically removes it from all sessions.
 
 ### Organizing the session list

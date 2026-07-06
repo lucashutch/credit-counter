@@ -221,6 +221,15 @@ export class SessionTreeDataProvider
     this.updateSummary();
   }
 
+  /**
+   * The session item currently selected/focused in the tree, if any. Used by
+   * keyboard-triggered commands (e.g. pressing `l` to assign a label) which
+   * receive no explicit item argument.
+   */
+  getSelectedItem(): SessionTreeItem | undefined {
+    return this.treeView?.selection?.[0];
+  }
+
   /** Forces a re-read of the log files. */
   async refresh(): Promise<void> {
     this.sessions = await this.reader.readAllSessions();
