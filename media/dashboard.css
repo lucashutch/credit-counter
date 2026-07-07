@@ -49,7 +49,7 @@ body {
 
 .kpis {
   display: grid;
-  grid-template-columns: repeat(4, 1fr);
+  grid-template-columns: repeat(auto-fit, minmax(140px, 1fr));
   gap: var(--gap);
   margin-bottom: var(--gap);
 }
@@ -77,15 +77,22 @@ body {
   gap: var(--gap);
   margin-bottom: var(--gap);
 }
+.grid.grid-3 {
+  grid-template-columns: 1fr 1fr 1fr;
+}
 
 .card {
   background: var(--vscode-editorWidget-background, rgba(127, 127, 127, 0.08));
   border: 1px solid var(--vscode-widget-border, transparent);
   border-radius: 8px;
   padding: 16px;
+  /* Allow the card to shrink below its content (a rendered chart canvas has a
+     large intrinsic width) so grid columns resize with the window. */
+  min-width: 0;
 }
 .card.full {
   width: 100%;
+  margin-bottom: var(--gap);
 }
 .card h2 {
   margin: 0 0 12px;
@@ -127,6 +134,71 @@ body {
   height: 340px;
 }
 
+.heatmap-wrap {
+  height: 300px;
+}
+.heatmap {
+  display: grid;
+  grid-template-rows: auto repeat(7, 1fr);
+  gap: 3px;
+  width: 100%;
+  height: 100%;
+}
+.hm-corner,
+.hm-hour,
+.hm-day {
+  font-size: 0.65em;
+  opacity: 0.7;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+.hm-day {
+  justify-content: flex-end;
+  padding-right: 8px;
+  white-space: nowrap;
+}
+.hm-cell {
+  min-width: 0;
+  border-radius: 3px;
+  border: 1px solid var(--vscode-widget-border, rgba(127, 127, 127, 0.15));
+}
+
+.token-stats {
+  display: flex;
+  flex-direction: column;
+  gap: var(--gap);
+}
+.tstat-group {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(120px, 1fr));
+  gap: var(--gap);
+}
+.tstat {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  text-align: center;
+  padding: 12px 8px;
+  border-radius: 8px;
+  background: var(--vscode-editor-background, rgba(127, 127, 127, 0.05));
+  border: 1px solid var(--vscode-widget-border, rgba(127, 127, 127, 0.12));
+}
+.tstat-num {
+  font-size: 1.4em;
+  font-weight: 700;
+}
+.tstat-sub {
+  font-size: 0.95em;
+  font-weight: 600;
+  opacity: 0.85;
+}
+.tstat-lbl {
+  margin-top: 4px;
+  opacity: 0.7;
+  font-size: 0.8em;
+}
+
 .empty {
   text-align: center;
   opacity: 0.7;
@@ -140,7 +212,8 @@ body {
   .kpis {
     grid-template-columns: repeat(2, 1fr);
   }
-  .grid {
+  .grid,
+  .grid.grid-3 {
     grid-template-columns: 1fr;
   }
 }

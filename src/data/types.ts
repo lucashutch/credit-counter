@@ -91,26 +91,74 @@ export interface LabelSlice {
   color: string;
 }
 
+/** A generic named cost slice used by the harness/model/repo breakdowns. */
+export interface Slice {
+  name: string;
+  credits: number;
+  color: string;
+}
+
+/** Aggregated token counts for a period, summed across sessions. */
+export interface TokenBreakdown {
+  input: number;
+  output: number;
+  cacheWrite: number;
+  cacheRead: number;
+}
+
+/** Headline KPI figures for a single period. */
+export interface PeriodKpis {
+  /** Total cost within the period, in USD. */
+  cost: number;
+  /** Percent change vs. the preceding equal-length window (null when N/A). */
+  percentChange: number | null;
+  /** Number of labels with non-zero cost in the period. */
+  activeLabels: number;
+  /** Average cost per (non-zero) session in the period, in USD. */
+  avgCostPerSession: number;
+}
+
 /** Aggregated payload sent to the dashboard webview (Phase 5). */
 export interface DashboardData {
   /** Per-session totals (top N), most expensive first, keyed by period. */
   perSession: Record<Period, SessionSlice[]>;
   /** Per-label totals (incl. "Unassigned" bucket), keyed by period. */
   perLabel: Record<Period, LabelSlice[]>;
+  /** Per-harness (source) totals, keyed by period. */
+  perHarness: Record<Period, Slice[]>;
+  /** Per-model totals (top N + "Other"), keyed by period. */
+  perModel: Record<Period, Slice[]>;
+  /** Per-repo/workspace totals (top N + "Other"), keyed by period. */
+  perRepo: Record<Period, Slice[]>;
+  /** Average cost per session by harness, keyed by period. */
+  avgCostByHarness: Record<Period, Slice[]>;
+  /** Average cost per session by (primary) model, keyed by period. */
+  avgCostByModel: Record<Period, Slice[]>;
+  /** Average total tokens per session by (primary) model, keyed by period. */
+  avgTokensByModel: Record<Period, Slice[]>;
+  /** Number of sessions by (primary) model, keyed by period. */
+  sessionsByModel: Record<Period, Slice[]>;
+  /** Average subagents per session by (primary) model, keyed by period. */
+  avgSubagentsByModel: Record<Period, Slice[]>;
+  /** Number of sessions by label (incl. "Unassigned"), keyed by period. */
+  sessionsByLabel: Record<Period, Slice[]>;
+  /** Aggregate token counts, keyed by period. */
+  tokens: Record<Period, TokenBreakdown>;
+  /**
+   * Spend heat by weekday × hour, keyed by period. Each value is a flat array
+   * of 168 dollar totals indexed `weekday * 24 + hour` (weekday 0 = Monday).
+   */
+  activity: Record<Period, number[]>;
   /** Daily cumulative credits for the current month. */
   monthly: { day: number; cumulative: number }[];
   /** Daily cumulative credits for the previous month (full month). */
   prevMonthly: { day: number; cumulative: number }[];
   /** Previous month label, e.g. "May 2026". */
   prevMonthLabel: string;
-  /** Headline KPIs. */
-  kpis: {
-    totalCredits: number;
-    activeLabels: number;
-    monthCredits: number;
-    prevMonthCredits: number;
-    percentChange: number | null;
-  };
+  /** Headline KPIs, keyed by period so they follow the top-right filter. */
+  kpis: Record<Period, PeriodKpis>;
+  /** Human-readable label for each period, e.g. "This month". */
+  periodLabels: Record<Period, string>;
   /** Month label, e.g. "June 2026". */
   monthLabel: string;
 }

@@ -6,6 +6,7 @@ import initSqlJs, { Database, SqlJsStatic } from "sql.js";
 import { SessionCost, TokenUsage } from "./types";
 import { SessionSource } from "./SessionSource";
 import { friendlyModelName } from "./ModelNames";
+import { ModelsDevPricing, RateMap, estimateCost } from "./ModelsDevPricing";
 
 /** `globalState` key under which the parsed OpenCode cache is persisted. */
 const CACHE_KEY = "creditCounter.openCodeCache";
@@ -21,6 +22,12 @@ const DATA_ROOTS_SETTING = "creditCounter.opencode.dataRoots";
 interface CacheEntry {
   mtimeMs: number;
   size: number;
+  /**
+   * Freshness stamp of the models.dev pricing used to estimate subscription
+   * (`$0`) sessions. When the pricing refreshes, this changes and the database
+   * is re-read so estimates re-price against the new rates.
+   */
+  pricingStamp: number;
   sessions: SessionCost[];
 }
 
@@ -57,8 +64,10 @@ interface RolledSession {
 /**
  * Reads OpenCode session data from its SQLite store (`opencode.db`) and produces
  * per-session cost summaries. Recent OpenCode versions aggregate cost and token
- * usage onto each row of the `session` table, so no per-message pricing is
- * needed — we read those columns directly.
+ * usage onto each row of the `session` table, so billed cost is read directly.
+ * Subscription/plan providers (e.g. ChatGPT Codex, Copilot) instead report
+ * `$0` while still recording token usage; for those we estimate cost from
+ * models.dev pricing (see {@link ModelsDevPricing}) so they aren't discarded.
  *
  * OpenCode locates its data under `$XDG_DATA_HOME/opencode` (falling back to
  * `~/.local/share/opencode`). Users who run multiple profiles with distinct
@@ -72,7 +81,14 @@ export class OpenCodeReader implements SessionSource {
   /** Lazily-initialized sql.js module (loads the WASM once). */
   private sqlJs: Promise<SqlJsStatic> | undefined;
 
-  constructor(private readonly context: vscode.ExtensionContext) {}
+  private readonly pricing: ModelsDevPricing;
+
+  constructor(
+    private readonly context: vscode.ExtensionContext,
+    pricing?: ModelsDevPricing
+  ) {
+    this.pricing = pricing ?? new ModelsDevPricing(context);
+  }
 
   private get version(): string {
     return (this.context.extension?.packageJSON?.version as string) ?? "0.0.0";
@@ -185,6 +201,9 @@ export class OpenCodeReader implements SessionSource {
       return [];
     }
 
+    // Rates used to estimate subscription (`$0`) sessions from token usage.
+    const { rates, stamp: pricingStamp } = await this.pricing.getRates();
+
     const cache = this.loadCache();
     const nextCache: Record<string, CacheEntry> = {};
     const sessions: SessionCost[] = [];
@@ -199,16 +218,22 @@ export class OpenCodeReader implements SessionSource {
       }
 
       const hit = cache[dbPath];
-      if (hit && hit.mtimeMs === stat.mtimeMs && hit.size === stat.size) {
+      if (
+        hit &&
+        hit.mtimeMs === stat.mtimeMs &&
+        hit.size === stat.size &&
+        hit.pricingStamp === pricingStamp
+      ) {
         nextCache[dbPath] = hit;
         sessions.push(...hit.sessions);
         continue;
       }
 
-      const parsed = await this.readDatabase(dbPath);
+      const parsed = await this.readDatabase(dbPath, rates);
       nextCache[dbPath] = {
         mtimeMs: stat.mtimeMs,
         size: stat.size,
+        pricingStamp,
         sessions: parsed,
       };
       dirty = true;
@@ -234,7 +259,10 @@ export class OpenCodeReader implements SessionSource {
   }
 
   /** Reads one `opencode.db`, mapping each priced `session` row to a summary. */
-  private async readDatabase(dbPath: string): Promise<SessionCost[]> {
+  private async readDatabase(
+    dbPath: string,
+    rates: RateMap
+  ): Promise<SessionCost[]> {
     let bytes: Buffer;
     try {
       bytes = await fs.promises.readFile(dbPath);
@@ -289,6 +317,11 @@ export class OpenCodeReader implements SessionSource {
       // table keyed by session id.
       const modelCostBySession = this.readModelCosts(db);
 
+      // Subscription/plan providers (ChatGPT Codex, Copilot, …) report `$0` but
+      // still record token usage, so estimate their per-model cost from
+      // models.dev pricing. Sessions that already have real cost are untouched.
+      const estimatedBySession = this.readEstimatedCosts(db, rates);
+
       // Fold every session's cost and tokens into its top-level ancestor
       // (subagents can themselves spawn subagents), keyed by the root's id.
       const rolled = new Map<string, RolledSession>();
@@ -308,15 +341,19 @@ export class OpenCodeReader implements SessionSource {
         if (s.id !== root.id) {
           agg.subagentCount += 1;
         }
-        agg.cost += s.cost;
         agg.tokens.input += s.tokens.input;
         agg.tokens.output += s.tokens.output;
         agg.tokens.cacheWrite += s.tokens.cacheWrite;
         agg.tokens.cacheRead += s.tokens.cacheRead;
-        // Attribute this (sub)session's message-level costs to the root.
-        const perModel = modelCostBySession.get(s.id);
-        if (perModel) {
-          for (const [name, c] of perModel) {
+
+        // Use billed cost when present; otherwise fall back to the estimate.
+        // The two are mutually exclusive per (sub)session, so estimates only
+        // fill in the gaps left by subscription usage.
+        const estimated = estimatedBySession.get(s.id);
+        const effective = s.cost > 0 ? modelCostBySession.get(s.id) : estimated;
+        agg.cost += s.cost > 0 ? s.cost : this.sumMap(estimated);
+        if (effective) {
+          for (const [name, c] of effective) {
             agg.costByModel[name] = (agg.costByModel[name] ?? 0) + c;
           }
         }
@@ -431,6 +468,84 @@ export class OpenCodeReader implements SessionSource {
       // Missing `message` table or no json1 support — no model breakdown.
     }
     return bySession;
+  }
+
+  /**
+   * Estimates per-model cost for subscription sessions from token usage. Reads
+   * assistant messages with a recorded cost of `0`, grouped by session and
+   * `providerID/modelID`, sums their token buckets, and prices them against the
+   * models.dev {@link RateMap}. Reasoning tokens are billed as output. Models
+   * with no known rate (local/self-hosted) contribute `$0` and are omitted, so
+   * only genuinely-priceable usage is estimated. Returns an empty map when
+   * pricing is unavailable or the query fails.
+   */
+  private readEstimatedCosts(
+    db: Database,
+    rates: RateMap
+  ): Map<string, Map<string, number>> {
+    const bySession = new Map<string, Map<string, number>>();
+    if (rates.size === 0) {
+      return bySession;
+    }
+    try {
+      const result = db.exec(
+        `SELECT session_id,
+                json_extract(data, '$.providerID') AS provider,
+                json_extract(data, '$.modelID') AS model,
+                SUM(COALESCE(json_extract(data, '$.tokens.input'), 0)) AS input,
+                SUM(COALESCE(json_extract(data, '$.tokens.output'), 0)
+                    + COALESCE(json_extract(data, '$.tokens.reasoning'), 0)) AS output,
+                SUM(COALESCE(json_extract(data, '$.tokens.cache.read'), 0)) AS cacheRead,
+                SUM(COALESCE(json_extract(data, '$.tokens.cache.write'), 0)) AS cacheWrite
+           FROM message
+          WHERE json_extract(data, '$.role') = 'assistant'
+            AND COALESCE(json_extract(data, '$.cost'), 0) = 0
+          GROUP BY session_id, provider, model`
+      );
+      const rows = result[0]?.values;
+      if (!rows) {
+        return bySession;
+      }
+      for (const row of rows) {
+        const sessionId = typeof row[0] === "string" ? row[0] : "";
+        const provider = typeof row[1] === "string" ? row[1] : "";
+        const modelId = typeof row[2] === "string" ? row[2] : "";
+        if (!sessionId || !provider || !modelId) {
+          continue;
+        }
+        const cost = estimateCost(rates.get(`${provider}/${modelId}`), {
+          input: this.num(row[3]),
+          output: this.num(row[4]),
+          cacheRead: this.num(row[5]),
+          cacheWrite: this.num(row[6]),
+        });
+        if (cost <= 0) {
+          continue;
+        }
+        const name = friendlyModelName(modelId);
+        let models = bySession.get(sessionId);
+        if (!models) {
+          models = new Map<string, number>();
+          bySession.set(sessionId, models);
+        }
+        models.set(name, (models.get(name) ?? 0) + cost);
+      }
+    } catch {
+      // Missing `message` table or no json1 support — no estimates.
+    }
+    return bySession;
+  }
+
+  /** Sums the values of a per-model cost map (undefined → 0). */
+  private sumMap(map: Map<string, number> | undefined): number {
+    if (!map) {
+      return 0;
+    }
+    let total = 0;
+    for (const v of map.values()) {
+      total += v;
+    }
+    return total;
   }
 
   /**

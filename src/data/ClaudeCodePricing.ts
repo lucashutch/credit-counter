@@ -1,3 +1,5 @@
+import { ModelRate as MdRate, RateMap } from "./ModelsDevPricing";
+
 /**
  * Token usage of a single assistant turn, split into the fields Anthropic
  * prices independently. Cache-creation is tiered: 5-minute ephemeral cache is
@@ -15,12 +17,8 @@ export interface PricedUsage {
 
 /**
  * Per-model token prices in US dollars per **million** tokens. Claude Code logs
- * raw token counts but no cost, so we price them here to produce a dollar figure
- * per session.
- *
- * Rates follow Anthropic's published list pricing. Models are matched by family
- * substring (`fable` / `opus` / `sonnet` / `haiku`) so new point releases within
- * a family are priced correctly without a table update.
+ * raw token counts but no cost, so we price them from models.dev's `anthropic`
+ * catalog to produce a dollar figure per session.
  */
 interface ModelRate {
   /** USD per million input tokens. */
@@ -35,30 +33,41 @@ interface ModelRate {
   cacheRead: number;
 }
 
-/** Builds a rate from the input/output/cache-read base, deriving cache-write tiers. */
-function rate(input: number, output: number, cacheRead: number): ModelRate {
-  return {
-    input,
-    output,
-    cacheWrite5m: input * 1.25,
-    cacheWrite1h: input * 2,
-    cacheRead,
-  };
+/**
+ * Claude model families, most-specific first, matched against the model id by
+ * substring (case-insensitive). New point releases within a family are priced
+ * from whichever models.dev `anthropic` entry matches the same family.
+ */
+const FAMILIES = ["fable", "opus", "sonnet", "haiku"];
+
+/** Family used to price models that match no known family (mid-tier default). */
+const DEFAULT_FAMILY = "sonnet";
+
+/**
+ * Finds the models.dev `anthropic` rate for a family (e.g. the first
+ * `anthropic/…opus…` entry). Returns undefined when pricing is unavailable or
+ * the family isn't present in the catalog.
+ */
+function anthropicRate(family: string, rates: RateMap): MdRate | undefined {
+  for (const [key, rate] of rates) {
+    if (key.startsWith("anthropic/") && key.includes(family)) {
+      return rate;
+    }
+  }
+  return undefined;
 }
 
-/** Family rates, matched against the model id by substring (case-insensitive). */
-const FAMILY_RATES: { match: string; rate: ModelRate }[] = [
-  { match: "fable", rate: rate(10, 50, 1.0) },
-  { match: "opus", rate: rate(5, 25, 0.5) },
-  { match: "sonnet", rate: rate(2, 10, 0.2) },
-  { match: "haiku", rate: rate(1, 5, 0.1) },
-];
-
-/** Fallback rate for unrecognized models (uses Sonnet-tier pricing). */
-const DEFAULT_RATE = FAMILY_RATES[2].rate;
-
-/** Resolves the rate table for a model id, or undefined for synthetic/no-cost. */
-function rateForModel(model: string | undefined): ModelRate | undefined {
+/**
+ * Resolves the per-turn rate for a model id from the models.dev rate map, or
+ * undefined for synthetic/no-cost turns or when pricing is unavailable. The
+ * 5-minute cache-write rate comes straight from models.dev's `cache_write`
+ * (1.25× input); the 1-hour tier is derived as 2× input, which models.dev does
+ * not publish separately.
+ */
+function rateForModel(
+  model: string | undefined,
+  rates: RateMap
+): ModelRate | undefined {
   if (!model) {
     return undefined;
   }
@@ -67,16 +76,32 @@ function rateForModel(model: string | undefined): ModelRate | undefined {
   if (lower.includes("synthetic")) {
     return undefined;
   }
-  const found = FAMILY_RATES.find((f) => lower.includes(f.match));
-  return found ? found.rate : DEFAULT_RATE;
+  const family = FAMILIES.find((f) => lower.includes(f)) ?? DEFAULT_FAMILY;
+  const md =
+    anthropicRate(family, rates) ?? anthropicRate(DEFAULT_FAMILY, rates);
+  if (!md) {
+    return undefined;
+  }
+  return {
+    input: md.input,
+    output: md.output,
+    cacheWrite5m: md.cacheWrite,
+    cacheWrite1h: md.input * 2,
+    cacheRead: md.cacheRead,
+  };
 }
 
 /**
  * Computes the US-dollar cost of a single assistant turn's token usage for the
- * given model. Returns 0 for synthetic/untracked turns.
+ * given model, using models.dev pricing. Returns 0 for synthetic/untracked
+ * turns and when pricing is unavailable (offline / before the first fetch).
  */
-export function costForUsage(model: string | undefined, usage: PricedUsage): number {
-  const r = rateForModel(model);
+export function costForUsage(
+  model: string | undefined,
+  usage: PricedUsage,
+  rates: RateMap
+): number {
+  const r = rateForModel(model, rates);
   if (!r) {
     return 0;
   }
